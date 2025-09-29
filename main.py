@@ -5,13 +5,12 @@ import httpx
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional, Dict, Any
 import json
 import io
 from pydantic import BaseModel
 import asyncio
 from nasa_gibs import NASAGIBSClient
-from nasa_client import NASAPowerClient
 
 app = FastAPI(
     title="NASA Weather Probability API",
@@ -59,37 +58,6 @@ class WeatherProbabilityRequest(BaseModel):
     years_back: int = 10  # How many years of historical data to analyze
     parameters: List[str]
     thresholds: Dict[str, Dict[str, float]]  # Parameter -> {"hot": 35, "cold": 0, etc.}
-
-class HourlyDataRequest(BaseModel):
-    latitude: float
-    longitude: float
-    start_date: str  # Format: YYYYMMDD
-    end_date: str    # Format: YYYYMMDD
-    parameters: List[str]
-    community: str = "SB"  # Default to Science/Buildings community
-
-class DailyDataRequest(BaseModel):
-    latitude: float
-    longitude: float
-    start_date: str  # Format: YYYYMMDD
-    end_date: str    # Format: YYYYMMDD
-    parameters: List[str]
-    community: str = "SB"  # Default to Science/Buildings community
-
-class MonthlyDataRequest(BaseModel):
-    latitude: float
-    longitude: float
-    start_month: str  # Format: YYYYMM
-    end_month: str    # Format: YYYYMM
-    parameters: List[str]
-    community: str = "SB"  # Default to Science/Buildings community
-
-class ClimatologyDataRequest(BaseModel):
-    latitude: float
-    longitude: float
-    month: str  # Format: MM (01-12) or "all"
-    parameters: List[str]
-    community: str = "SB"  # Default to Science/Buildings community
 
 @app.get("/")
 async def root():
@@ -402,138 +370,6 @@ async def get_leaflet_config():
         return config
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error getting configuration: {str(e)}")
-
-@app.post("/weather/hourly")
-async def get_hourly_weather_data(request: HourlyDataRequest):
-    """Fetch hourly weather data from NASA POWER API"""
-    
-    try:
-        async with NASAPowerClient() as client:
-            data = await client.get_hourly_data(
-                latitude=request.latitude,
-                longitude=request.longitude,
-                start_date=request.start_date,
-                end_date=request.end_date,
-                parameters=request.parameters,
-                community=request.community
-            )
-            
-        return {
-            "status": "success",
-            "location": {
-                "latitude": request.latitude,
-                "longitude": request.longitude
-            },
-            "date_range": {
-                "start": request.start_date,
-                "end": request.end_date
-            },
-            "parameters": request.parameters,
-            "data": data
-        }
-        
-    except httpx.RequestError as e:
-        raise HTTPException(status_code=500, detail=f"Request failed: {str(e)}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching hourly data: {str(e)}")
-
-@app.post("/weather/daily")
-async def get_daily_weather_data(request: DailyDataRequest):
-    """Fetch daily weather data from NASA POWER API"""
-    
-    try:
-        async with NASAPowerClient() as client:
-            data = await client.get_daily_data(
-                latitude=request.latitude,
-                longitude=request.longitude,
-                start_date=request.start_date,
-                end_date=request.end_date,
-                parameters=request.parameters,
-                community=request.community
-            )
-            
-        return {
-            "status": "success",
-            "location": {
-                "latitude": request.latitude,
-                "longitude": request.longitude
-            },
-            "date_range": {
-                "start": request.start_date,
-                "end": request.end_date
-            },
-            "parameters": request.parameters,
-            "data": data
-        }
-        
-    except httpx.RequestError as e:
-        raise HTTPException(status_code=500, detail=f"Request failed: {str(e)}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching daily data: {str(e)}")
-
-@app.post("/weather/monthly")
-async def get_monthly_weather_data(request: MonthlyDataRequest):
-    """Fetch monthly weather data from NASA POWER API"""
-    
-    try:
-        async with NASAPowerClient() as client:
-            data = await client.get_monthly_data(
-                latitude=request.latitude,
-                longitude=request.longitude,
-                start_year_month=request.start_month,
-                end_year_month=request.end_month,
-                parameters=request.parameters,
-                community=request.community
-            )
-            
-        return {
-            "status": "success",
-            "location": {
-                "latitude": request.latitude,
-                "longitude": request.longitude
-            },
-            "date_range": {
-                "start": request.start_month,
-                "end": request.end_month
-            },
-            "parameters": request.parameters,
-            "data": data
-        }
-        
-    except httpx.RequestError as e:
-        raise HTTPException(status_code=500, detail=f"Request failed: {str(e)}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching monthly data: {str(e)}")
-
-@app.post("/weather/climatology")
-async def get_climatology_weather_data(request: ClimatologyDataRequest):
-    """Fetch climatology weather data from NASA POWER API"""
-    
-    try:
-        async with NASAPowerClient() as client:
-            data = await client.get_climatology_data(
-                latitude=request.latitude,
-                longitude=request.longitude,
-                month=request.month,
-                parameters=request.parameters,
-                community=request.community
-            )
-            
-        return {
-            "status": "success",
-            "location": {
-                "latitude": request.latitude,
-                "longitude": request.longitude
-            },
-            "month": request.month,
-            "parameters": request.parameters,
-            "data": data
-        }
-        
-    except httpx.RequestError as e:
-        raise HTTPException(status_code=500, detail=f"Request failed: {str(e)}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching climatology data: {str(e)}")
 
 @app.get("/health")
 async def health_check():

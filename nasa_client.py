@@ -2,18 +2,11 @@ import httpx
 import asyncio
 import json
 from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional, Union
 
 class NASAPowerClient:
     """Client for interacting with NASA POWER API"""
     
-    # Base URLs for different temporal endpoints
-    BASE_URLS = {
-        "hourly": "https://power.larc.nasa.gov/api/temporal/hourly/point",
-        "daily": "https://power.larc.nasa.gov/api/temporal/daily/point",
-        "monthly": "https://power.larc.nasa.gov/api/temporal/monthly/point", 
-        "climatology": "https://power.larc.nasa.gov/api/temporal/climatology/point"
-    }
+    BASE_URL = "https://power.larc.nasa.gov/api/temporal/daily/point"
     
     def __init__(self):
         self.session = None
@@ -26,156 +19,47 @@ class NASAPowerClient:
         if self.session:
             await self.session.aclose()
     
-    async def get_data(
-        self,
-        temporal_api: str,  # 'hourly', 'daily', 'monthly', or 'climatology'
+    async def get_weather_data(
+        self, 
         latitude: float, 
         longitude: float,
-        parameters: List[str],
-        start: Optional[str] = None,  # Format depends on temporal_api
-        end: Optional[str] = None,    # Format depends on temporal_api
-        community: str = "SB",        # SB = Science/Buildings community
-        format_type: str = "JSON"
-    ) -> Dict[str, Any]:
+        start_date: str, 
+        end_date: str,
+        parameters: list,
+        community: str = "AG"
+    ):
         """
-        Fetch data from NASA POWER API for different temporal resolutions
+        Fetch weather data from NASA POWER API
         
         Args:
-            temporal_api: Type of temporal API ('hourly', 'daily', 'monthly', 'climatology')
             latitude: Latitude coordinate
-            longitude: Longitude coordinate
+            longitude: Longitude coordinate  
+            start_date: Start date in YYYYMMDD format
+            end_date: End date in YYYYMMDD format
             parameters: List of weather parameters to fetch
-            start: Start date in format appropriate for the temporal_api:
-                   - hourly, daily: YYYYMMDD
-                   - monthly: YYYYMM
-                   - climatology: MM (month number 01-12)
-            end: End date in format appropriate for the temporal_api
-            community: Data community (SB, AG, RE, SSE)
-            format_type: Response format (JSON, CSV, ASCII, NETCDF)
+            community: Data community (AG, RE, SB)
         
         Returns:
             Dict containing API response data
         """
         
-        # Validate temporal_api
-        if temporal_api not in self.BASE_URLS:
-            raise ValueError(f"Invalid temporal_api: {temporal_api}. Valid options are: {list(self.BASE_URLS.keys())}")
-        
-        # Build base parameters
         params = {
             "parameters": ",".join(parameters),
             "community": community,
             "latitude": latitude,
             "longitude": longitude,
-            "format": format_type
+            "start": start_date,
+            "end": end_date,
+            "format": "JSON"
         }
-        
-        # Add start/end parameters based on temporal_api
-        if temporal_api != "climatology":
-            if not start or not end:
-                raise ValueError(f"Both start and end are required for {temporal_api} API")
-                
-            # For monthly API, the parameter names are different
-            if temporal_api == "monthly":
-                params["start"] = start
-                params["end"] = end
-            else:
-                params["start"] = start
-                params["end"] = end
-        else:
-            # Climatology only needs month
-            if start:
-                params["month"] = start
         
         if not self.session:
             raise RuntimeError("Client not initialized. Use 'async with' context manager.")
         
-        # Make API request
-        response = await self.session.get(self.BASE_URLS[temporal_api], params=params)
+        response = await self.session.get(self.BASE_URL, params=params)
         response.raise_for_status()
         
         return response.json()
-    
-    # Convenience methods for each temporal resolution
-    
-    async def get_hourly_data(
-        self,
-        latitude: float,
-        longitude: float,
-        start_date: str,  # YYYYMMDD
-        end_date: str,    # YYYYMMDD
-        parameters: List[str],
-        community: str = "SB"
-    ) -> Dict[str, Any]:
-        """Get hourly weather data"""
-        return await self.get_data(
-            temporal_api="hourly",
-            latitude=latitude,
-            longitude=longitude,
-            parameters=parameters,
-            start=start_date,
-            end=end_date,
-            community=community
-        )
-    
-    async def get_daily_data(
-        self,
-        latitude: float,
-        longitude: float,
-        start_date: str,  # YYYYMMDD
-        end_date: str,    # YYYYMMDD
-        parameters: List[str],
-        community: str = "SB"
-    ) -> Dict[str, Any]:
-        """Get daily weather data"""
-        return await self.get_data(
-            temporal_api="daily",
-            latitude=latitude,
-            longitude=longitude,
-            parameters=parameters,
-            start=start_date,
-            end=end_date,
-            community=community
-        )
-    
-    async def get_monthly_data(
-        self,
-        latitude: float,
-        longitude: float,
-        start_year_month: str,  # YYYYMM
-        end_year_month: str,    # YYYYMM
-        parameters: List[str],
-        community: str = "SB"
-    ) -> Dict[str, Any]:
-        """Get monthly weather data"""
-        return await self.get_data(
-            temporal_api="monthly",
-            latitude=latitude,
-            longitude=longitude,
-            parameters=parameters,
-            start=start_year_month,
-            end=end_year_month,
-            community=community
-        )
-    
-    async def get_climatology_data(
-        self,
-        latitude: float,
-        longitude: float,
-        month: str,  # MM (01-12, or "all" for all months)
-        parameters: List[str],
-        community: str = "SB"
-    ) -> Dict[str, Any]:
-        """Get climatology data for specified month(s)"""
-        return await self.get_data(
-            temporal_api="climatology",
-            latitude=latitude,
-            longitude=longitude,
-            parameters=parameters,
-            start=month,
-            end=None,
-            community=community
-        )
     
     async def get_historical_range(
         self,
