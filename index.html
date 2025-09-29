@@ -1,0 +1,4235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NASA Weather Probability Dashboard</title>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        #map { height: 400px; width: 100%; }
+        .weather-card { 
+            transition: transform 0.2s; 
+            cursor: pointer;
+        }
+        .weather-card:hover { 
+            transform: translateY(-5px); 
+        }
+        .probability-high { color: #dc3545; font-weight: bold; }
+        .probability-medium { color: #ffc107; font-weight: bold; }
+        .probability-low { color: #28a745; font-weight: bold; }
+        .loading-spinner { 
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <!-- Header -->
+        <div class="row bg-dark text-white py-3">
+            <div class="col">
+                <h1 class="mb-0">
+                    🛰️ NASA Weather Probability Dashboard
+                </h1>
+                <p class="mb-0">Plan your outdoor activities with historical weather insights</p>
+            </div>
+        </div>
+
+        <!-- Controls Panel -->
+        <div class="row py-4 bg-light">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>📍 Location & Date Selection</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <!-- Location Input -->
+                            <div class="col-md-5">
+                                <label class="form-label"><i class="bi bi-geo-alt"></i> Location</label>
+                                <div class="input-group mb-2">
+                                    <input type="text" id="locationSearch" class="form-control" 
+                                           placeholder="Enter city, country or address" 
+                                           list="popularCities">
+                                    <datalist id="popularCities">
+                                        <option value="New York">
+                                        <option value="London">
+                                        <option value="Tokyo">
+                                        <option value="Paris">
+                                        <option value="Sydney">
+                                        <option value="Dubai">
+                                        <option value="Mumbai">
+                                        <option value="Rio de Janeiro">
+                                        <option value="Cape Town">
+                                    </datalist>
+                                    <button class="btn btn-primary" type="button" id="searchLocationBtn" onclick="searchLocation()">
+                                        <i class="bi bi-search"></i> Search
+                                    </button>
+                                    <button class="btn btn-outline-secondary" type="button" id="useCurrentLocation">
+                                        <i class="bi bi-geo"></i> My Location
+                                    </button>
+                                </div>
+                                <div class="mb-2 d-flex align-items-center">
+                                    <div class="location-badge p-1 px-2 bg-light border rounded d-inline-flex align-items-center">
+                                        <span id="selectedLocationName">No location selected</span>
+                                        <span class="ms-2 badge bg-primary rounded-pill" style="font-size:0.7rem;">
+                                            <span id="selectedLat">-</span>, <span id="selectedLng">-</span>
+                                        </span>
+                                    </div>
+                                    <button class="btn btn-sm btn-outline-success ms-2" id="saveLocationBtn" title="Save this location">
+                                        <i class="bi bi-bookmark-plus"></i>
+                                    </button>
+                                </div>
+                                
+                                <!-- Saved Locations Dropdown -->
+                                <div class="dropdown mt-1 mb-2">
+                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="savedLocationsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="bi bi-bookmark"></i> Saved Locations
+                                    </button>
+                                    <ul class="dropdown-menu" id="savedLocationsList" aria-labelledby="savedLocationsDropdown">
+                                        <li><span class="dropdown-item text-muted">No saved locations</span></li>
+                                    </ul>
+                                </div>
+                                
+                                <small class="text-muted">
+                                    <i class="bi bi-info-circle"></i> Search for a city, use saved locations, or click directly on the map
+                                </small>
+                            </div>
+
+                            <!-- Date Selection -->
+                            <div class="col-md-3">
+                                <label class="form-label"><i class="bi bi-calendar"></i> Event Date</label>
+                                <input type="date" id="targetDate" class="form-control mb-2">
+                                
+                                <div class="mb-2">
+                                    <label class="form-label d-flex align-items-center">
+                                        <i class="bi bi-clock-history me-1"></i> 
+                                        <span>Data Granularity</span>
+                                    </label>
+                                    
+                                    <ul class="nav nav-tabs" id="timeframeTab" role="tablist">
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link" id="hourly-tab" data-bs-toggle="tab" data-bs-target="#hourly-content" type="button" role="tab" aria-controls="hourly" aria-selected="false">
+                                                Hourly
+                                                <span class="badge bg-warning ms-1 small" title="Coming soon">Beta</span>
+                                            </button>
+                                        </li>
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link active" id="daily-tab" data-bs-toggle="tab" data-bs-target="#daily-content" type="button" role="tab" aria-controls="daily" aria-selected="true">
+                                                Daily
+                                            </button>
+                                        </li>
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link" id="monthly-tab" data-bs-toggle="tab" data-bs-target="#monthly-content" type="button" role="tab" aria-controls="monthly" aria-selected="false">
+                                                Monthly
+                                                <span class="badge bg-warning ms-1 small" title="Coming soon">Beta</span>
+                                            </button>
+                                        </li>
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link" id="climatology-tab" data-bs-toggle="tab" data-bs-target="#climatology-content" type="button" role="tab" aria-controls="climatology" aria-selected="false">
+                                                Climatology
+                                                <span class="badge bg-secondary ms-1 small" title="Coming soon">Soon</span>
+                                            </button>
+                                        </li>
+                                    </ul>
+                                    
+                                    <div class="tab-content border border-top-0 rounded-bottom p-3" id="timeframeTabContent">
+                                        <!-- Hourly Content -->
+                                        <div class="tab-pane fade" id="hourly-content" role="tabpanel" aria-labelledby="hourly-tab">
+                                            <div class="mb-2">
+                                                <input type="radio" class="btn-check" name="timeGranularity" id="hourlyGranularity" value="hourly">
+                                                <label class="btn btn-sm btn-outline-primary" for="hourlyGranularity">Use Hourly Data</label>
+                                                <div class="form-text mt-1">
+                                                    <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+                                                    <small>This endpoint is still in development. May return errors.</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Daily Content -->
+                                        <div class="tab-pane fade show active" id="daily-content" role="tabpanel" aria-labelledby="daily-tab">
+                                            <div class="mb-2">
+                                                <input type="radio" class="btn-check" name="timeGranularity" id="dailyGranularity" value="daily" checked>
+                                                <label class="btn btn-sm btn-outline-primary" for="dailyGranularity">Use Daily Data</label>
+                                                <div class="form-text mt-1">
+                                                    <i class="bi bi-check-circle-fill text-success"></i>
+                                                    <small>This endpoint is fully functional.</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Monthly Content -->
+                                        <div class="tab-pane fade" id="monthly-content" role="tabpanel" aria-labelledby="monthly-tab">
+                                            <div class="mb-2">
+                                                <input type="radio" class="btn-check" name="timeGranularity" id="monthlyGranularity" value="monthly">
+                                                <label class="btn btn-sm btn-outline-primary" for="monthlyGranularity">Use Monthly Data</label>
+                                                <div class="form-text mt-1">
+                                                    <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+                                                    <small>This endpoint is still in development. May return errors.</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Climatology Content -->
+                                        <div class="tab-pane fade" id="climatology-content" role="tabpanel" aria-labelledby="climatology-tab">
+                                            <div class="mb-2">
+                                                <input type="radio" class="btn-check" name="timeGranularity" id="climatologyGranularity" value="climatology">
+                                                <label class="btn btn-sm btn-outline-primary" for="climatologyGranularity">Use Climatology Data</label>
+                                                <div class="form-text mt-1">
+                                                    <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+                                                    <small>This endpoint is still in development. May return errors.</small>
+                                                </div>
+                                                <div class="mt-3">
+                                                    <label class="form-label">Select month:</label>
+                                                    <select id="climatologyMonth" class="form-select form-select-sm">
+                                                        <option value="01">January</option>
+                                                        <option value="02">February</option>
+                                                        <option value="03">March</option>
+                                                        <option value="04">April</option>
+                                                        <option value="05">May</option>
+                                                        <option value="06">June</option>
+                                                        <option value="07">July</option>
+                                                        <option value="08">August</option>
+                                                        <option value="09">September</option>
+                                                        <option value="10">October</option>
+                                                        <option value="11">November</option>
+                                                        <option value="12">December</option>
+                                                        <option value="all">All Months (Annual)</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Date range settings -->
+                                <div id="dateRangeContainer" class="d-flex align-items-center">
+                                    <small class="text-muted me-2">Historical data range:</small>
+                                    <select id="yearsBack" class="form-select form-select-sm" style="max-width:120px;">
+                                        <option value="5">5 years</option>
+                                        <option value="10" selected>10 years</option>
+                                        <option value="15">15 years</option>
+                                        <option value="20">20 years</option>
+                                    </select>
+                                </div>
+                                
+                                <!-- Custom date range (initially hidden) -->
+                                <div id="customDateRange" class="mt-2" style="display: none;">
+                                    <div class="mb-2">
+                                        <label class="form-label small">Start Date</label>
+                                        <input type="date" id="startDate" class="form-control form-control-sm">
+                                    </div>
+                                    <div>
+                                        <label class="form-label small">End Date</label>
+                                        <input type="date" id="endDate" class="form-control form-control-sm">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Weather Parameters -->
+                            <div class="col-md-4">
+                                <label class="form-label">🌦️ Weather Conditions to Analyze</label>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" value="T2M" id="paramTemp" checked>
+                                            <label class="form-check-label" for="paramTemp">
+                                                <span class="d-flex align-items-center">
+                                                    <i class="bi bi-thermometer-half me-1"></i> Temperature
+                                                </span>
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" value="PRECTOTCORR" id="paramPrecip" checked>
+                                            <label class="form-check-label" for="paramPrecip">
+                                                <span class="d-flex align-items-center">
+                                                    <i class="bi bi-cloud-rain me-1"></i> Precipitation
+                                                </span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" value="WS2M" id="paramWind" checked>
+                                            <label class="form-check-label" for="paramWind">
+                                                <span class="d-flex align-items-center">
+                                                    <i class="bi bi-wind me-1"></i> Wind Speed
+                                                </span>
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" value="RH2M" id="paramHumidity">
+                                            <label class="form-check-label" for="paramHumidity">
+                                                <span class="d-flex align-items-center">
+                                                    <i class="bi bi-moisture me-1"></i> Humidity
+                                                </span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    <button class="btn btn-sm btn-outline-secondary" type="button" id="selectAllParams">Select All</button>
+                                    <button class="btn btn-sm btn-outline-secondary ms-1" type="button" id="deselectAllParams">Deselect All</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <button id="analyzeBtn" class="btn btn-primary btn-lg me-2">
+                                    <i class="bi bi-graph-up me-1"></i> Analyze Weather Probability
+                                </button>
+                                <button id="exportBtn" class="btn btn-outline-success me-2" disabled>
+                                    <i class="bi bi-download me-1"></i> Export Data (CSV)
+                                </button>
+                                <button id="showThresholdsBtn" class="btn btn-outline-info" type="button" 
+                                        data-bs-toggle="modal" data-bs-target="#thresholdsModal">
+                                    <i class="bi bi-info-circle me-1"></i> Weather Thresholds
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Map Section -->
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>🗺️ Select Location on Map</h5>
+                    </div>
+                    <div class="card-body p-0 position-relative">
+                        <div id="map"></div>
+                        <div class="loading-spinner">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div class="row mt-4" id="resultsSection" style="display: none;">
+            <!-- Weather Probability Cards -->
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>🎯 Weather Probability Results</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="probabilityCards" class="row g-3">
+                            <!-- Dynamic probability cards will be inserted here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Section -->
+            <div class="col-md-6 mt-3">
+                <div class="card">
+                    <div class="card-header">
+                        <h6>📈 Historical Trends</h6>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="trendChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6 mt-3">
+                <div class="card">
+                    <div class="card-header">
+                        <h6>📊 Probability Distribution</h6>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="distributionChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Comfort Index -->
+            <div class="col-md-12 mt-3">
+                <div class="card">
+                    <div class="card-header">
+                        <h6>🌈 Weather Comfort Analysis</h6>
+                    </div>
+                    <div class="card-body">
+                        <div id="comfortAnalysis">
+                            <!-- Comfort index results will be shown here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Thresholds Modal -->
+    <div class="modal fade" id="thresholdsModal" tabindex="-1" aria-labelledby="thresholdsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="thresholdsModalLabel">
+                        <i class="bi bi-info-circle me-2"></i> Weather Condition Thresholds
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>The analysis uses these threshold values to determine different weather conditions:</p>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Parameter</th>
+                                    <th>Condition</th>
+                                    <th>Threshold</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td rowspan="4" class="align-middle">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-thermometer-half me-2 text-danger"></i> Temperature
+                                        </div>
+                                    </td>
+                                    <td>Very Hot</td>
+                                    <td>≥ 35°C</td>
+                                    <td>Extreme heat, high risk of heat-related illnesses</td>
+                                </tr>
+                                <tr>
+                                    <td>Hot</td>
+                                    <td>≥ 30°C</td>
+                                    <td>Significantly warm, uncomfortable for many activities</td>
+                                </tr>
+                                <tr>
+                                    <td>Cold</td>
+                                    <td>≤ 10°C</td>
+                                    <td>Chilly conditions requiring warm clothing</td>
+                                </tr>
+                                <tr>
+                                    <td>Very Cold</td>
+                                    <td>≤ 0°C</td>
+                                    <td>Freezing conditions with risk of hypothermia</td>
+                                </tr>
+                                
+                                <tr>
+                                    <td rowspan="3" class="align-middle">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-cloud-rain me-2 text-primary"></i> Precipitation
+                                        </div>
+                                    </td>
+                                    <td>Wet</td>
+                                    <td>≥ 10 mm</td>
+                                    <td>Noticeable rainfall that may affect outdoor activities</td>
+                                </tr>
+                                <tr>
+                                    <td>Very Wet</td>
+                                    <td>≥ 25 mm</td>
+                                    <td>Heavy rainfall, likely causing disruptions</td>
+                                </tr>
+                                <tr>
+                                    <td>Extreme Wet</td>
+                                    <td>≥ 50 mm</td>
+                                    <td>Severe rainfall with potential flooding risk</td>
+                                </tr>
+                                
+                                <tr>
+                                    <td rowspan="3" class="align-middle">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-wind me-2 text-secondary"></i> Wind Speed
+                                        </div>
+                                    </td>
+                                    <td>Windy</td>
+                                    <td>≥ 10 m/s</td>
+                                    <td>Significant wind affecting comfort</td>
+                                </tr>
+                                <tr>
+                                    <td>Very Windy</td>
+                                    <td>≥ 15 m/s</td>
+                                    <td>Strong winds with potential for minor damage</td>
+                                </tr>
+                                <tr>
+                                    <td>Extreme Windy</td>
+                                    <td>≥ 20 m/s</td>
+                                    <td>Dangerous wind conditions</td>
+                                </tr>
+                                
+                                <tr>
+                                    <td rowspan="4" class="align-middle">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-moisture me-2 text-info"></i> Humidity
+                                        </div>
+                                    </td>
+                                    <td>Humid</td>
+                                    <td>≥ 70%</td>
+                                    <td>Noticeably humid, may cause discomfort</td>
+                                </tr>
+                                <tr>
+                                    <td>Very Humid</td>
+                                    <td>≥ 80%</td>
+                                    <td>High humidity causing significant discomfort</td>
+                                </tr>
+                                <tr>
+                                    <td>Dry</td>
+                                    <td>≤ 30%</td>
+                                    <td>Low humidity, may cause dry skin and eyes</td>
+                                </tr>
+                                <tr>
+                                    <td>Very Dry</td>
+                                    <td>≤ 20%</td>
+                                    <td>Extremely low humidity, potential health concerns</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="alert alert-info mt-3">
+                        <h6><i class="bi bi-lightbulb me-2"></i>How We Calculate Comfort Index</h6>
+                        <p class="mb-0">The comfort index combines temperature, humidity, wind speed and precipitation data to determine overall outdoor comfort. It considers factors such as heat index, wind chill, and general weather conditions to provide a comprehensive assessment of how comfortable the conditions might feel.</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Global variables
+        let map;
+        let marker;
+        let currentLocation = { lat: 12.97, lng: 77.59 }; // Default to Bangalore
+        let analysisResults = null;
+        let satelliteLayers = {};
+        let baseLayersControl;
+        let overlayLayersControl;
+        let currentBaseLayer = null;
+        let currentOverlays = {};
+
+        // API Base URL - adjust for your FastAPI server
+        const API_BASE = 'http://127.0.0.1:8082';
+        
+        // Saved locations for quick access
+        let savedLocations = [];
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeMap();
+            setupEventListeners();
+            setDefaultDate();
+            loadSatelliteLayers();
+            loadSavedLocations();
+        });
+
+        function initializeMap() {
+            // Initialize Leaflet map
+            map = L.map('map').setView([currentLocation.lat, currentLocation.lng], 3);
+            
+            // Add OpenStreetMap tiles as default
+            const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            // Initial base layers
+            const baseLayers = {
+                "OpenStreetMap": osmLayer
+            };
+            
+            // Empty overlays to start
+            const overlays = {};
+            
+            // Initialize layer controls
+            baseLayersControl = L.control.layers(baseLayers, overlays).addTo(map);
+            currentBaseLayer = osmLayer;
+
+            // Add initial marker
+            marker = L.marker([currentLocation.lat, currentLocation.lng]).addTo(map);
+            updateLocationDisplay();
+
+            // Handle map clicks
+            map.on('click', function(e) {
+                currentLocation = { lat: e.latlng.lat, lng: e.latlng.lng };
+                
+                if (marker) {
+                    map.removeLayer(marker);
+                }
+                marker = L.marker([currentLocation.lat, currentLocation.lng]).addTo(map);
+                
+                // Try to reverse geocode the clicked location
+                fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${currentLocation.lat}&lon=${currentLocation.lng}&zoom=10`)
+                    .then(response => response.json())
+                    .then(data => {
+                        let locationName = 'Selected Location';
+                        
+                        if (data && data.display_name) {
+                            const parts = data.display_name.split(',');
+                            // Get a simplified name
+                            if (parts.length >= 3) {
+                                locationName = parts[1].trim() + ', ' + parts[parts.length - 1].trim();
+                            } else {
+                                locationName = data.display_name;
+                            }
+                            
+                            // Show in popup
+                            marker.bindPopup(`<b>${data.display_name}</b>`).openPopup();
+                        }
+                        
+                        // Update display with the name
+                        updateLocationDisplay(locationName);
+                    })
+                    .catch(err => {
+                        // If reverse geocoding fails, just show coordinates
+                        updateLocationDisplay('Selected Location');
+                        console.error("Error reverse geocoding:", err);
+                    });
+            });
+        }
+        
+        async function loadSatelliteLayers() {
+            try {
+                // Show loading indicator on the map
+                const loadingDiv = document.createElement('div');
+                loadingDiv.id = 'satellite-loading';
+                loadingDiv.innerHTML = `
+                    <div style="
+                        position: absolute;
+                        top: 10px;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        background: rgba(255,255,255,0.8);
+                        padding: 5px 15px;
+                        border-radius: 20px;
+                        z-index: 1000;
+                        display: flex;
+                        align-items: center;
+                        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+                    ">
+                        <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <span>Loading NASA Satellite Layers...</span>
+                    </div>
+                `;
+                document.getElementById('map').appendChild(loadingDiv);
+                
+                // Fetch available satellite layers
+                const response = await fetch(`${API_BASE}/satellite/layers`);
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    // Set up NASA GIBS layers
+                    setupSatelliteLayers(data.layers, data.categories);
+                    
+                    // Add notification
+                    const notification = document.createElement('div');
+                    notification.className = 'alert alert-success alert-dismissible fade show';
+                    notification.setAttribute('role', 'alert');
+                    notification.innerHTML = `
+                        <strong>NASA Satellite Imagery Loaded!</strong> Use the layers control <i class="bi bi-layers"></i> on the map to explore different imagery.
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    `;
+                    
+                    const controlsCard = document.querySelector('.card-header');
+                    if (controlsCard) {
+                        controlsCard.parentNode.insertBefore(notification, controlsCard);
+                        
+                        // Auto dismiss after 8 seconds
+                        setTimeout(() => {
+                            notification.classList.remove('show');
+                            setTimeout(() => notification.remove(), 500);
+                        }, 8000);
+                    }
+                } else {
+                    throw new Error('Failed to load satellite layers');
+                }
+            } catch (error) {
+                console.error('Error loading satellite layers:', error);
+                
+                // Show error notification
+                const errorNotification = document.createElement('div');
+                errorNotification.className = 'alert alert-warning alert-dismissible fade show';
+                errorNotification.setAttribute('role', 'alert');
+                errorNotification.innerHTML = `
+                    <strong>Satellite Imagery Unavailable</strong> Could not load NASA GIBS layers. The app will continue to work without satellite imagery.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                `;
+                
+                const controlsCard = document.querySelector('.card-header');
+                if (controlsCard) {
+                    controlsCard.parentNode.insertBefore(errorNotification, controlsCard);
+                }
+            } finally {
+                // Remove loading indicator
+                const loadingDiv = document.getElementById('satellite-loading');
+                if (loadingDiv) {
+                    loadingDiv.remove();
+                }
+            }
+        }
+        
+        function setupSatelliteLayers(layers, categories) {
+            // Get current date for layer initialization
+            const today = new Date();
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+            
+            const dateStr = yesterday.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+            
+            // Create base layers (true color imagery)
+            if (categories["Base Layers"]) {
+                categories["Base Layers"].forEach(layerId => {
+                    const layer = layers.find(l => l.id === layerId);
+                    if (layer) {
+                        // Create NASA GIBS TileLayer
+                        const gibsLayer = L.tileLayer(`${API_BASE}/satellite/tile/{z}/{y}/{x}?layer=${layerId}&date=${dateStr}`, {
+                            attribution: 'NASA GIBS',
+                            maxZoom: 9,
+                            name: layer.name,
+                            id: layerId
+                        });
+                        
+                        // Add to base layers control
+                        satelliteLayers[layerId] = gibsLayer;
+                        baseLayersControl.addBaseLayer(gibsLayer, `🛰️ ${layer.name}`);
+                    }
+                });
+            }
+            
+            // Create overlay layers for weather data
+            for (const [category, layerIds] of Object.entries(categories)) {
+                if (category !== "Base Layers") {
+                    layerIds.forEach(layerId => {
+                        const layer = layers.find(l => l.id === layerId);
+                        if (layer) {
+                            // Create NASA GIBS overlay layer
+                            const overlayLayer = L.tileLayer(`${API_BASE}/satellite/tile/{z}/{y}/{x}?layer=${layerId}&date=${dateStr}`, {
+                                attribution: 'NASA GIBS',
+                                maxZoom: 9,
+                                opacity: 0.7,
+                                transparent: true,
+                                name: layer.name,
+                                id: layerId
+                            });
+                            
+                            // Add to overlay control
+                            satelliteLayers[layerId] = overlayLayer;
+                            
+                            // Prefix with emoji based on category
+                            let prefix = '🛰️';
+                            if (category === 'Weather') prefix = '🌦️';
+                            if (category === 'Environment') prefix = '🌿';
+                            if (category === 'Night') prefix = '🌃';
+                            
+                            baseLayersControl.addOverlay(overlayLayer, `${prefix} ${layer.name}`);
+                        }
+                    });
+                }
+            }
+            
+            // Add satellite date control
+            addSatelliteDateControl();
+        }
+
+        function addSatelliteDateControl() {
+            // Create a custom control for satellite imagery date selection
+            const SatelliteDateControl = L.Control.extend({
+                options: {
+                    position: 'topright'
+                },
+                
+                onAdd: function(map) {
+                    const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control satellite-date-control');
+                    container.style.background = 'white';
+                    container.style.padding = '8px';
+                    container.style.borderRadius = '4px';
+                    
+                    const today = new Date();
+                    const yesterday = new Date(today);
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    
+                    const dateStr = yesterday.toISOString().split('T')[0];
+                    
+                    container.innerHTML = `
+                        <div style="margin-bottom:5px;font-weight:bold;">Satellite Imagery Date</div>
+                        <input type="date" id="satelliteDate" class="form-control" value="${dateStr}" max="${dateStr}">
+                        <button id="updateSatelliteDate" class="btn btn-sm btn-primary mt-1">Update</button>
+                    `;
+                    
+                    L.DomEvent.disableClickPropagation(container);
+                    
+                    setTimeout(() => {
+                        document.getElementById('updateSatelliteDate').addEventListener('click', function() {
+                            updateSatelliteLayerDate();
+                        });
+                    }, 500);
+                    
+                    return container;
+                }
+            });
+            
+            // Add the control to the map
+            new SatelliteDateControl().addTo(map);
+        }
+        
+        function updateSatelliteLayerDate() {
+            const dateInput = document.getElementById('satelliteDate');
+            if (!dateInput) return;
+            
+            const newDate = dateInput.value;
+            
+            // Update all satellite layers with new date
+            Object.keys(satelliteLayers).forEach(layerId => {
+                const layer = satelliteLayers[layerId];
+                
+                // Update the layer URL
+                const newUrl = `${API_BASE}/satellite/tile/{z}/{y}/{x}?layer=${layerId}&date=${newDate}`;
+                layer.setUrl(newUrl);
+            });
+            
+            // Show a notification
+            alert(`Satellite imagery updated to ${newDate}`);
+        }
+
+        function setupEventListeners() {
+            // Analyze button
+            document.getElementById('analyzeBtn').addEventListener('click', analyzeWeatherProbability);
+            
+            // Export button
+            document.getElementById('exportBtn').addEventListener('click', exportData);
+            
+            // Current location button
+            document.getElementById('useCurrentLocation').addEventListener('click', getCurrentLocation);
+            
+            // Location search (basic implementation)
+            document.getElementById('locationSearch').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    searchLocation();
+                }
+            });
+            
+            // Location search autocomplete suggestions
+            document.getElementById('locationSearch').addEventListener('input', function(e) {
+                suggestCities(e.target.value);
+            });
+            
+            // Search location button
+            document.getElementById('searchLocationBtn').addEventListener('click', searchLocation);
+            
+            // Save location button
+            document.getElementById('saveLocationBtn').addEventListener('click', saveCurrentLocation);
+            
+            // Parameter selection
+            document.getElementById('selectAllParams').addEventListener('click', function() {
+                document.querySelectorAll('input[type="checkbox"][id^="param"]').forEach(checkbox => {
+                    checkbox.checked = true;
+                });
+            });
+            
+            document.getElementById('deselectAllParams').addEventListener('click', function() {
+                document.querySelectorAll('input[type="checkbox"][id^="param"]').forEach(checkbox => {
+                    checkbox.checked = false;
+                });
+            });
+            
+            // Time granularity selection
+            document.querySelectorAll('input[name="timeGranularity"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    updateDateInputsForGranularity(this.value);
+                    
+                    // Also update the tab UI when radio is changed
+                    const tabId = this.value + '-tab';
+                    const tabElement = document.getElementById(tabId);
+                    if (tabElement) {
+                        bootstrap.Tab.getOrCreateInstance(tabElement).show();
+                    }
+                });
+            });
+            
+            // Add listeners for tab changes to select the corresponding radio button
+            document.querySelectorAll('button[data-bs-toggle="tab"]').forEach(tab => {
+                tab.addEventListener('shown.bs.tab', function(event) {
+                    const tabId = event.target.id;
+                    const granularity = tabId.replace('-tab', '');
+                    const radio = document.getElementById(granularity + 'Granularity');
+                    if (radio && !radio.disabled) {
+                        radio.checked = true;
+                        updateDateInputsForGranularity(radio.value);
+                    }
+                });
+            });
+            
+            // Initialize date inputs based on default selection
+            updateDateInputsForGranularity(document.querySelector('input[name="timeGranularity"]:checked').value);
+            
+            // Add satellite imagery tab to controls panel
+            addSatelliteTab();
+        }
+        
+        // Update date input fields based on selected time granularity
+        function updateDateInputsForGranularity(granularity) {
+            const dateRangeContainer = document.getElementById('dateRangeContainer');
+            const customDateRange = document.getElementById('customDateRange');
+            const targetDateContainer = document.getElementById('targetDate').parentNode;
+            const climatologyMonthContainer = document.getElementById('climatologyMonth') ? 
+                                            document.getElementById('climatologyMonth').closest('.mt-3') : null;
+            
+            // Set defaults for date inputs
+            const today = new Date();
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+            const lastMonth = new Date(today);
+            lastMonth.setMonth(lastMonth.getMonth() - 1);
+            
+            document.getElementById('startDate').value = formatDate(lastMonth);
+            document.getElementById('endDate').value = formatDate(yesterday);
+            
+            // Show/hide appropriate date inputs based on granularity
+            switch(granularity) {
+                case 'hourly':
+                    // For hourly, we use a custom date range with a limited span (1-3 days recommended)
+                    dateRangeContainer.style.display = 'none';
+                    customDateRange.style.display = 'block';
+                    targetDateContainer.style.display = 'none';
+                    if (climatologyMonthContainer) climatologyMonthContainer.style.display = 'none';
+                    
+                    // Set a default of yesterday to today for hourly data (limited timespan)
+                    const twoDaysAgo = new Date(today);
+                    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+                    document.getElementById('startDate').value = formatDate(twoDaysAgo);
+                    document.getElementById('endDate').value = formatDate(yesterday);
+                    break;
+                    
+                case 'daily':
+                    // For daily, show both options - can use target date + years back or custom range
+                    dateRangeContainer.style.display = 'flex';
+                    customDateRange.style.display = 'none';
+                    targetDateContainer.style.display = 'block';
+                    if (climatologyMonthContainer) climatologyMonthContainer.style.display = 'none';
+                    break;
+                    
+                case 'monthly':
+                    // For monthly, use custom date range but with months/years
+                    dateRangeContainer.style.display = 'none';
+                    customDateRange.style.display = 'block';
+                    targetDateContainer.style.display = 'none';
+                    if (climatologyMonthContainer) climatologyMonthContainer.style.display = 'none';
+                    
+                    // Set default range to last 12 months for monthly data
+                    const lastYear = new Date(today);
+                    lastYear.setFullYear(lastYear.getFullYear() - 1);
+                    document.getElementById('startDate').value = formatDate(lastYear);
+                    document.getElementById('endDate').value = formatDate(yesterday);
+                    break;
+                    
+                case 'climatology':
+                    // For climatology, we use the month selector
+                    dateRangeContainer.style.display = 'none';
+                    customDateRange.style.display = 'none';
+                    targetDateContainer.style.display = 'none';
+                    if (climatologyMonthContainer) climatologyMonthContainer.style.display = 'block';
+                    
+                    // Set default month to current month
+                    if (document.getElementById('climatologyMonth')) {
+                        const currentMonth = (today.getMonth() + 1).toString().padStart(2, '0');
+                        document.getElementById('climatologyMonth').value = currentMonth;
+                    }
+                    break;
+            }
+        }
+        
+        // Helper to format date as YYYY-MM-DD
+        function formatDate(date) {
+            return date.toISOString().split('T')[0];
+        }
+        
+        // Get parameter display information
+        function getParameterInfo(paramCode) {
+            const paramInfo = {
+                'T2M': { 
+                    displayName: 'Temperature', 
+                    icon: '🌡️',
+                    unit: '°C',
+                    description: 'Temperature at 2 Meters'
+                },
+                'T2M_MAX': { 
+                    displayName: 'Max Temperature', 
+                    icon: '🌡️',
+                    unit: '°C',
+                    description: 'Maximum Temperature at 2 Meters'
+                },
+                'T2M_MIN': { 
+                    displayName: 'Min Temperature', 
+                    icon: '🌡️',
+                    unit: '°C',
+                    description: 'Minimum Temperature at 2 Meters'
+                },
+                'PRECTOTCORR': { 
+                    displayName: 'Precipitation', 
+                    icon: '🌧️',
+                    unit: 'mm/day',
+                    description: 'Precipitation (Corrected)'
+                },
+                'WS2M': { 
+                    displayName: 'Wind Speed', 
+                    icon: '💨',
+                    unit: 'm/s',
+                    description: 'Wind Speed at 2 Meters'
+                },
+                'RH2M': { 
+                    displayName: 'Humidity', 
+                    icon: '💧',
+                    unit: '%',
+                    description: 'Relative Humidity at 2 Meters'
+                },
+                'ALLSKY_SFC_SW_DWN': { 
+                    displayName: 'Solar Radiation', 
+                    icon: '☀️',
+                    unit: 'kW-hr/m²/day',
+                    description: 'All Sky Surface Shortwave Downward Irradiance'
+                }
+            };
+            
+            return paramInfo[paramCode] || { 
+                displayName: paramCode, 
+                icon: '📊',
+                unit: '',
+                description: paramCode
+            };
+        }
+        
+        // Function to suggest cities as user types
+        function suggestCities(query) {
+            if (query.length < 3) return; // Only suggest after 3 characters
+            
+            // Throttle API calls
+            if (window.lastSuggestTime && Date.now() - window.lastSuggestTime < 500) {
+                clearTimeout(window.suggestTimeout);
+            }
+            
+            window.lastSuggestTime = Date.now();
+            
+            window.suggestTimeout = setTimeout(() => {
+                fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`)
+                    .then(response => response.json())
+                    .then(data => {
+                        // Clear existing options except the built-in ones
+                        const datalist = document.getElementById('popularCities');
+                        const defaultCities = ['New York', 'London', 'Tokyo', 'Paris', 'Sydney', 'Dubai', 'Mumbai', 'Rio de Janeiro', 'Cape Town'];
+                        
+                        // Remove dynamic suggestions (keep default cities)
+                        Array.from(datalist.options).forEach(option => {
+                            if (!defaultCities.includes(option.value)) {
+                                datalist.removeChild(option);
+                            }
+                        });
+                        
+                        // Add new suggestions
+                        data.forEach(item => {
+                            // Create simple display name from the complex one
+                            const nameParts = item.display_name.split(',');
+                            let simpleName = nameParts[0];
+                            
+                            if (nameParts.length > 2) {
+                                // Add country or region for disambiguation
+                                simpleName += ', ' + nameParts[nameParts.length - 1].trim();
+                            }
+                            
+                            // Don't add duplicates or items in our default list
+                            if (!defaultCities.includes(simpleName)) {
+                                const option = document.createElement('option');
+                                option.value = simpleName;
+                                option.setAttribute('data-lat', item.lat);
+                                option.setAttribute('data-lng', item.lon);
+                                datalist.appendChild(option);
+                            }
+                        });
+                    })
+                    .catch(err => console.error('Error getting city suggestions:', err));
+            }, 500);
+        }
+        
+        // Function to save the current location
+        function saveCurrentLocation() {
+            const locationName = document.getElementById('selectedLocationName').textContent;
+            const lat = parseFloat(document.getElementById('selectedLat').textContent);
+            const lng = parseFloat(document.getElementById('selectedLng').textContent);
+            
+            // Check if we have a valid location
+            if (locationName === 'No location selected' || isNaN(lat) || isNaN(lng)) {
+                showNotification('Please select a location first', 'warning');
+                return;
+            }
+            
+            // Create location object
+            const location = {
+                name: locationName,
+                lat: lat,
+                lng: lng,
+                saved: new Date().toISOString()
+            };
+            
+            // Check if this location already exists
+            const exists = savedLocations.some(loc => 
+                loc.lat.toFixed(4) === lat.toFixed(4) && 
+                loc.lng.toFixed(4) === lng.toFixed(4)
+            );
+            
+            if (!exists) {
+                // Add to saved locations
+                savedLocations.push(location);
+                
+                // Save to localStorage
+                localStorage.setItem('nasaWeatherSavedLocations', JSON.stringify(savedLocations));
+                
+                // Update the UI
+                updateSavedLocationsList();
+                
+                // Show notification
+                showNotification(`Location "${locationName}" saved successfully!`, 'success');
+            } else {
+                showNotification('This location is already saved', 'info');
+            }
+        }
+        
+        // Function to load saved locations from localStorage
+        function loadSavedLocations() {
+            const saved = localStorage.getItem('nasaWeatherSavedLocations');
+            if (saved) {
+                try {
+                    savedLocations = JSON.parse(saved);
+                    updateSavedLocationsList();
+                } catch (e) {
+                    console.error('Error loading saved locations:', e);
+                    savedLocations = [];
+                }
+            }
+        }
+        
+        // Function to update the saved locations dropdown
+        function updateSavedLocationsList() {
+            const list = document.getElementById('savedLocationsList');
+            list.innerHTML = '';
+            
+            if (savedLocations.length === 0) {
+                const item = document.createElement('li');
+                item.innerHTML = '<span class="dropdown-item text-muted">No saved locations</span>';
+                list.appendChild(item);
+            } else {
+                // Sort locations by name
+                savedLocations.sort((a, b) => a.name.localeCompare(b.name));
+                
+                savedLocations.forEach((location, index) => {
+                    const item = document.createElement('li');
+                    const link = document.createElement('a');
+                    link.className = 'dropdown-item';
+                    link.href = '#';
+                    link.innerHTML = `
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>${location.name}</div>
+                            <button class="btn btn-sm btn-link text-danger p-0 ms-2 delete-location" 
+                                    data-index="${index}" 
+                                    title="Remove from saved locations">
+                                <i class="bi bi-x-circle"></i>
+                            </button>
+                        </div>
+                    `;
+                    
+                    // Add event listener to select this location
+                    link.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        selectSavedLocation(index);
+                    });
+                    
+                    item.appendChild(link);
+                    list.appendChild(item);
+                });
+                
+                // Add event listeners to delete buttons
+                document.querySelectorAll('.delete-location').forEach(btn => {
+                    btn.addEventListener('click', function(e) {
+                        e.stopPropagation(); // Prevent triggering the parent link
+                        const index = parseInt(this.getAttribute('data-index'));
+                        deleteSavedLocation(index);
+                    });
+                });
+            }
+        }
+        
+        // Function to select a saved location
+        function selectSavedLocation(index) {
+            const location = savedLocations[index];
+            if (location) {
+                // Update current location
+                currentLocation = {
+                    lat: location.lat,
+                    lng: location.lng
+                };
+                
+                // Update map view
+                map.setView([currentLocation.lat, currentLocation.lng], 10);
+                
+                // Update marker
+                if (marker) {
+                    map.removeLayer(marker);
+                }
+                marker = L.marker([currentLocation.lat, currentLocation.lng]).addTo(map);
+                
+                // Update display
+                updateLocationDisplay(location.name);
+                
+                // Show popup
+                marker.bindPopup(`<b>${location.name}</b>`).openPopup();
+            }
+        }
+        
+        // Function to delete a saved location
+        function deleteSavedLocation(index) {
+            const location = savedLocations[index];
+            if (location && confirm(`Remove "${location.name}" from your saved locations?`)) {
+                savedLocations.splice(index, 1);
+                
+                // Save updated list to localStorage
+                localStorage.setItem('nasaWeatherSavedLocations', JSON.stringify(savedLocations));
+                
+                // Update the UI
+                updateSavedLocationsList();
+                
+                // Show notification
+                showNotification(`Location "${location.name}" removed from saved locations`, 'info');
+            }
+        }
+        
+        // Helper function to show notifications
+        function showNotification(message, type = 'info') {
+            const locationCard = document.querySelector('.location-badge').closest('.col-md-5');
+            const notification = document.createElement('div');
+            notification.className = `alert alert-${type} alert-dismissible fade show mt-2`;
+            notification.setAttribute('role', 'alert');
+            notification.style.fontSize = '0.9rem';
+            
+            // Icon based on notification type
+            let icon = 'info-circle';
+            if (type === 'success') icon = 'check-circle';
+            if (type === 'warning') icon = 'exclamation-triangle';
+            if (type === 'danger') icon = 'x-circle';
+            
+            notification.innerHTML = `
+                <i class="bi bi-${icon} me-1"></i> ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            
+            locationCard.appendChild(notification);
+            
+            // Auto dismiss after 4 seconds
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 500);
+            }, 4000);
+        }
+        
+        function addSatelliteTab() {
+            // Create a new tab for satellite imagery settings in the controls panel
+            const controlsCard = document.querySelector('.card-header:contains("Location & Date Selection")');
+            if (controlsCard) {
+                const parentCard = controlsCard.closest('.card');
+                
+                if (parentCard) {
+                    const satelliteTab = document.createElement('div');
+                    satelliteTab.className = 'mt-3';
+                    satelliteTab.innerHTML = `
+                        <div class="card">
+                            <div class="card-header">
+                                <h5>🛰️ Satellite Imagery</h5>
+                            </div>
+                            <div class="card-body">
+                                <p class="text-muted">Use the map layer control (top right) to toggle different satellite imagery layers:</p>
+                                <ul class="mb-3">
+                                    <li><strong>Base Layers:</strong> True color satellite imagery</li>
+                                    <li><strong>Weather Overlays:</strong> Clouds, precipitation, temperature</li>
+                                    <li><strong>Environment:</strong> Vegetation, snow cover, air quality</li>
+                                </ul>
+                                <p class="text-muted">Select a different date using the date control on the map.</p>
+                            </div>
+                        </div>
+                    `;
+                    
+                    parentCard.parentNode.insertBefore(satelliteTab, parentCard.nextSibling);
+                }
+            }
+        }
+
+        function setDefaultDate() {
+            // Set default date to 3 months from now
+            const future = new Date();
+            future.setMonth(future.getMonth() + 3);
+            document.getElementById('targetDate').value = future.toISOString().split('T')[0];
+        }
+
+        function updateLocationDisplay(locationName = '') {
+            document.getElementById('selectedLat').textContent = currentLocation.lat.toFixed(4);
+            document.getElementById('selectedLng').textContent = currentLocation.lng.toFixed(4);
+            
+            // Update location name if provided
+            if (locationName) {
+                document.getElementById('selectedLocationName').textContent = locationName;
+            } else {
+                // Otherwise just display coordinates as the name
+                document.getElementById('selectedLocationName').textContent = `Selected Location`;
+            }
+            
+            // Add a highlight effect to show that the location has been updated
+            const badge = document.querySelector('.location-badge');
+            badge.classList.add('bg-light', 'border-primary');
+            setTimeout(() => {
+                badge.classList.remove('bg-light', 'border-primary');
+            }, 2000);
+        }
+
+        function getCurrentLocation() {
+            if (navigator.geolocation) {
+                // Update button to show loading
+                const locationBtn = document.getElementById('useCurrentLocation');
+                const originalBtnHtml = locationBtn.innerHTML;
+                locationBtn.disabled = true;
+                locationBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Locating...';
+                
+                navigator.geolocation.getCurrentPosition(
+                    // Success callback
+                    function(position) {
+                        currentLocation = {
+                            lat: position.coords.latitude,
+                            lng: position.coords.longitude
+                        };
+                        
+                        // Update map view
+                        map.setView([currentLocation.lat, currentLocation.lng], 12);
+                        
+                        // Update marker
+                        if (marker) {
+                            map.removeLayer(marker);
+                        }
+                        marker = L.marker([currentLocation.lat, currentLocation.lng]).addTo(map);
+                        
+                        // Try to reverse geocode the location to get a name
+                        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${currentLocation.lat}&lon=${currentLocation.lng}&zoom=10`)
+                            .then(response => response.json())
+                            .then(data => {
+                                let locationName = 'Your Location';
+                                
+                                if (data && data.display_name) {
+                                    const parts = data.display_name.split(',');
+                                    // Try to get a reasonable name (city + country)
+                                    if (parts.length >= 3) {
+                                        locationName = parts[1].trim() + ', ' + parts[parts.length - 1].trim();
+                                    } else {
+                                        locationName = data.display_name;
+                                    }
+                                    
+                                    // Show in popup
+                                    marker.bindPopup(`<b>${data.display_name}</b>`).openPopup();
+                                }
+                                
+                                // Update display with the name
+                                updateLocationDisplay(locationName);
+                            })
+                            .catch(err => {
+                                // If reverse geocoding fails, just show coordinates
+                                updateLocationDisplay('Your Current Location');
+                                console.error("Error reverse geocoding:", err);
+                            })
+                            .finally(() => {
+                                // Reset the button
+                                locationBtn.disabled = false;
+                                locationBtn.innerHTML = originalBtnHtml;
+                            });
+                    },
+                    // Error callback
+                    function(error) {
+                        // Reset the button
+                        locationBtn.disabled = false;
+                        locationBtn.innerHTML = originalBtnHtml;
+                        
+                        let errorMsg = 'Unable to retrieve your location.';
+                        
+                        switch(error.code) {
+                            case error.PERMISSION_DENIED:
+                                errorMsg = 'Location access was denied by the user.';
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                errorMsg = 'Location information is unavailable.';
+                                break;
+                            case error.TIMEOUT:
+                                errorMsg = 'The request to get user location timed out.';
+                                break;
+                            case error.UNKNOWN_ERROR:
+                                errorMsg = 'An unknown error occurred while getting location.';
+                                break;
+                        }
+                        
+                        // Show error notification
+                        const locationCard = document.querySelector('.location-badge').closest('.col-md-5');
+                        const errorNotification = document.createElement('div');
+                        errorNotification.className = 'alert alert-warning alert-dismissible fade show mt-2';
+                        errorNotification.setAttribute('role', 'alert');
+                        errorNotification.style.fontSize = '0.9rem';
+                        errorNotification.innerHTML = `
+                            <i class="bi bi-exclamation-triangle me-1"></i> ${errorMsg}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        `;
+                        
+                        locationCard.appendChild(errorNotification);
+                        
+                        // Auto dismiss after 5 seconds
+                        setTimeout(() => {
+                            errorNotification.classList.remove('show');
+                            setTimeout(() => {
+                                if (errorNotification.parentNode) {
+                                    errorNotification.parentNode.removeChild(errorNotification);
+                                }
+                            }, 500);
+                        }, 5000);
+                    },
+                    // Options
+                    { 
+                        enableHighAccuracy: true, 
+                        timeout: 10000, 
+                        maximumAge: 0 
+                    }
+                );
+            } else {
+                alert('Geolocation is not supported by this browser.');
+            }
+        }
+
+        function searchLocation() {
+            // Implement Nominatim OpenStreetMap search for geocoding
+            const query = document.getElementById('locationSearch').value;
+            if (!query.trim()) {
+                showNotification('Please enter a location to search', 'warning');
+                return;
+            }
+            
+            // Show loading indicator
+            const searchInput = document.getElementById('locationSearch');
+            const originalValue = searchInput.value;
+            searchInput.disabled = true;
+            searchInput.value = "Searching...";
+            
+            // Show spinner in button
+            const searchBtn = document.getElementById('searchLocationBtn');
+            const originalBtnHtml = searchBtn.innerHTML;
+            searchBtn.disabled = true;
+            searchBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Searching...';
+            
+            // Check if we have multiple results - if so, show a modal to select
+            const searchParams = new URLSearchParams({
+                format: 'json',
+                q: query,
+                limit: 5,
+                addressdetails: 1
+            });
+            
+            // Use OpenStreetMap Nominatim API for geocoding
+            fetch(`https://nominatim.openstreetmap.org/search?${searchParams.toString()}`)
+                .then(response => response.json())
+                .then(data => {
+                    // Reset input and button
+                    searchInput.disabled = false;
+                    searchInput.value = originalValue;
+                    searchBtn.disabled = false;
+                    searchBtn.innerHTML = originalBtnHtml;
+                    
+                    if (data && data.length > 0) {
+                        if (data.length === 1) {
+                            // Just one result, use it directly
+                            processGeocodingResult(data[0]);
+                        } else {
+                            // Multiple results, show selection modal
+                            showLocationSelectionModal(data);
+                        }
+                    } else {
+                        showNotification('Location not found. Please try a different search.', 'warning');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error searching location:', error);
+                    searchInput.disabled = false;
+                    searchInput.value = originalValue;
+                    searchBtn.disabled = false;
+                    searchBtn.innerHTML = originalBtnHtml;
+                    
+                    showNotification('Error searching for location. Please try again.', 'danger');
+                });
+        }
+        
+        // Process a selected geocoding result
+        function processGeocodingResult(result) {
+            // Update current location
+            currentLocation = {
+                lat: parseFloat(result.lat),
+                lng: parseFloat(result.lon)
+            };
+            
+            // Update map view
+            map.setView([currentLocation.lat, currentLocation.lng], 10);
+            
+            // Update marker
+            if (marker) {
+                map.removeLayer(marker);
+            }
+            marker = L.marker([currentLocation.lat, currentLocation.lng]).addTo(map);
+            
+            // Create a formatted display name
+            let displayName = '';
+            
+            // Try to use address components for better formatting if available
+            if (result.address) {
+                const address = result.address;
+                const components = [];
+                
+                // Prioritize certain components
+                if (address.city) components.push(address.city);
+                else if (address.town) components.push(address.town);
+                else if (address.village) components.push(address.village);
+                else if (address.hamlet) components.push(address.hamlet);
+                
+                // Add county/state if available and different from city
+                if (address.county && !components.includes(address.county)) 
+                    components.push(address.county);
+                else if (address.state && !components.includes(address.state)) 
+                    components.push(address.state);
+                
+                // Always add country as last component
+                if (address.country && !components.includes(address.country)) 
+                    components.push(address.country);
+                
+                displayName = components.join(', ');
+            }
+            
+            // Fallback to splitting display_name if address components not available
+            if (!displayName) {
+                const locationParts = result.display_name.split(',');
+                displayName = locationParts[0];
+                if (locationParts.length > 1) {
+                    displayName += ', ' + locationParts[locationParts.length - 1].trim();
+                }
+            }
+            
+            // Show location name as popup
+            marker.bindPopup(`<b>${result.display_name}</b>`).openPopup();
+            
+            // Update display with the name
+            updateLocationDisplay(displayName);
+            
+            // Show success notification
+            showNotification(`Location found: <strong>${displayName}</strong>`, 'success');
+            
+            // Clear the search input
+            document.getElementById('locationSearch').value = '';
+        }
+        
+        // Show a modal with multiple location options
+        function showLocationSelectionModal(results) {
+            // Create modal element if it doesn't exist
+            let modal = document.getElementById('locationSelectionModal');
+            
+            if (!modal) {
+                const modalHTML = `
+                    <div class="modal fade" id="locationSelectionModal" tabindex="-1" aria-labelledby="locationSelectionModalLabel" aria-hidden="true">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="locationSelectionModalLabel">
+                                        <i class="bi bi-geo-alt me-2"></i>Select Location
+                                    </h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <p>Multiple locations found. Please select one:</p>
+                                    <div class="list-group" id="locationOptions">
+                                        <!-- Location options will be inserted here -->
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                const modalContainer = document.createElement('div');
+                modalContainer.innerHTML = modalHTML;
+                document.body.appendChild(modalContainer.firstChild);
+                modal = document.getElementById('locationSelectionModal');
+            }
+            
+            // Populate location options
+            const locationOptions = document.getElementById('locationOptions');
+            locationOptions.innerHTML = '';
+            
+            results.forEach((result, index) => {
+                // Format the location name
+                let locationName = '';
+                let details = '';
+                
+                // Try to use address components for better formatting
+                if (result.address) {
+                    const address = result.address;
+                    const mainComponents = [];
+                    const detailComponents = [];
+                    
+                    // Main components
+                    if (address.city) mainComponents.push(address.city);
+                    else if (address.town) mainComponents.push(address.town);
+                    else if (address.village) mainComponents.push(address.village);
+                    else if (address.hamlet) mainComponents.push(address.hamlet);
+                    
+                    // If we have state/country, add those
+                    if (address.state) mainComponents.push(address.state);
+                    if (address.country) mainComponents.push(address.country);
+                    
+                    // Detail components
+                    if (address.road) detailComponents.push(address.road);
+                    if (address.suburb) detailComponents.push(address.suburb);
+                    if (address.county && !mainComponents.includes(address.county)) 
+                        detailComponents.push(address.county);
+                    
+                    locationName = mainComponents.join(', ');
+                    details = detailComponents.join(', ');
+                }
+                
+                // Fallback to display_name if address parsing failed
+                if (!locationName) {
+                    const parts = result.display_name.split(',');
+                    locationName = parts.slice(0, Math.min(2, parts.length)).join(',');
+                    details = parts.slice(Math.min(2, parts.length)).join(',');
+                }
+                
+                // Type of location (city, building, etc)
+                const locationType = result.type.charAt(0).toUpperCase() + result.type.slice(1);
+                
+                const item = document.createElement('a');
+                item.className = 'list-group-item list-group-item-action';
+                item.href = '#';
+                item.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">${locationName}</h6>
+                            <p class="mb-1 text-muted small">${details}</p>
+                            <small class="text-muted">${locationType}</small>
+                        </div>
+                        <span class="badge bg-light text-dark rounded-pill">
+                            ${result.lat.substring(0, 6)}, ${result.lon.substring(0, 6)}
+                        </span>
+                    </div>
+                `;
+                
+                item.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    // Hide modal
+                    const modalInstance = bootstrap.Modal.getInstance(modal);
+                    modalInstance.hide();
+                    // Process selected location
+                    processGeocodingResult(result);
+                });
+                
+                locationOptions.appendChild(item);
+            });
+            
+            // Show the modal
+            const modalInstance = new bootstrap.Modal(modal);
+            modalInstance.show();
+        }
+
+        async function analyzeWeatherProbability() {
+            // Get selected time granularity
+            const granularity = document.querySelector('input[name="timeGranularity"]:checked').value;
+            
+            // Get selected parameters
+            const parameters = [];
+            document.querySelectorAll('input[type="checkbox"]:checked').forEach(checkbox => {
+                parameters.push(checkbox.value);
+            });
+
+            if (parameters.length === 0) {
+                showNotification('Please select at least one weather parameter', 'warning');
+                return;
+            }
+            
+            // Validate date inputs based on granularity
+            if (!validateDateInputs(granularity)) {
+                return; // Error message shown by validation function
+            }
+
+            // Show loading
+            showLoading(true);
+            
+            try {
+                // Different handling based on the granularity
+                let endpoint, requestData;
+                
+                switch(granularity) {
+                    case 'hourly':
+                        endpoint = '/weather/hourly';
+                        requestData = buildHourlyRequest(parameters);
+                        break;
+                        
+                    case 'daily':
+                        // Check if we're using probability mode or direct mode
+                        if (document.getElementById('customDateRange').style.display === 'none') {
+                            // Using probability mode with target date
+                            endpoint = '/weather/probability';
+                            requestData = buildDailyProbabilityRequest(parameters);
+                        } else {
+                            // Using direct mode with date range
+                            endpoint = '/weather/daily';
+                            requestData = buildDailyRangeRequest(parameters);
+                        }
+                        break;
+                        
+                    case 'monthly':
+                        endpoint = '/weather/monthly';
+                        requestData = buildMonthlyRequest(parameters);
+                        break;
+                        
+                    case 'climatology':
+                        endpoint = '/weather/climatology';
+                        requestData = buildClimatologyRequest(parameters);
+                        break;
+                }
+                
+                const response = await fetch(`${API_BASE}${endpoint}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestData)
+                });
+
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        if (granularity === 'hourly') {
+                            throw new Error(`The hourly data endpoint is still under development. Please use the daily endpoint for now.`);
+                        } else if (granularity === 'monthly') {
+                            throw new Error(`The monthly data endpoint is still under development. Please use the daily endpoint for now.`);
+                        } else if (granularity === 'climatology') {
+                            throw new Error(`The climatology endpoint is coming soon. Please use the daily endpoint for now.`);
+                        } else {
+                            throw new Error(`The ${granularity} endpoint is not yet implemented on the backend.`);
+                        }
+                    } else {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                }
+
+                const analysisResults = await response.json();
+                
+                try {
+                    // Wrap display results in try/catch to handle any chart rendering errors
+                    displayResultsBasedOnGranularity(analysisResults, granularity);
+                } catch (displayError) {
+                    console.error('Error displaying results:', displayError);
+                    // Destroy any potentially corrupted charts
+                    if (trendChartInstance) {
+                        trendChartInstance.destroy();
+                        trendChartInstance = null;
+                    }
+                    if (distributionChartInstance) {
+                        distributionChartInstance.destroy();
+                        distributionChartInstance = null;
+                    }
+                    throw new Error('Error rendering charts: ' + displayError.message);
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification('Error analyzing weather data: ' + error.message, 'danger');
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        // Validate date inputs based on granularity
+        function validateDateInputs(granularity) {
+            switch(granularity) {
+                case 'hourly':
+                    const hourlyStart = new Date(document.getElementById('startDate').value);
+                    const hourlyEnd = new Date(document.getElementById('endDate').value);
+                    
+                    if (!document.getElementById('startDate').value || !document.getElementById('endDate').value) {
+                        showNotification('Please select both start and end dates for hourly data', 'warning');
+                        return false;
+                    }
+                    
+                    if (hourlyEnd < hourlyStart) {
+                        showNotification('End date must be after start date', 'warning');
+                        return false;
+                    }
+                    
+                    // Check if range is not too large (NASA POWER recommends max 31 days for hourly)
+                    const hourlyDiff = (hourlyEnd - hourlyStart) / (1000 * 60 * 60 * 24);
+                    if (hourlyDiff > 3) {
+                        showNotification('For hourly data, please limit range to 3 days or less to avoid timeout issues', 'warning');
+                        return false;
+                    }
+                    break;
+                    
+                case 'daily':
+                    if (document.getElementById('customDateRange').style.display === 'none') {
+                        // Using target date mode
+                        if (!document.getElementById('targetDate').value) {
+                            showNotification('Please select a target date', 'warning');
+                            return false;
+                        }
+                    } else {
+                        // Using date range mode
+                        const dailyStart = new Date(document.getElementById('startDate').value);
+                        const dailyEnd = new Date(document.getElementById('endDate').value);
+                        
+                        if (!document.getElementById('startDate').value || !document.getElementById('endDate').value) {
+                            showNotification('Please select both start and end dates for daily data', 'warning');
+                            return false;
+                        }
+                        
+                        if (dailyEnd < dailyStart) {
+                            showNotification('End date must be after start date', 'warning');
+                            return false;
+                        }
+                        
+                        // Check if range is not too large (NASA POWER recommends max 366 days for daily)
+                        const dailyDiff = (dailyEnd - dailyStart) / (1000 * 60 * 60 * 24);
+                        if (dailyDiff > 366) {
+                            showNotification('For daily data, please limit range to 366 days or less', 'warning');
+                            return false;
+                        }
+                    }
+                    break;
+                    
+                case 'monthly':
+                    const monthlyStart = new Date(document.getElementById('startDate').value);
+                    const monthlyEnd = new Date(document.getElementById('endDate').value);
+                    
+                    if (!document.getElementById('startDate').value || !document.getElementById('endDate').value) {
+                        showNotification('Please select both start and end dates for monthly data', 'warning');
+                        return false;
+                    }
+                    
+                    if (monthlyEnd < monthlyStart) {
+                        showNotification('End date must be after start date', 'warning');
+                        return false;
+                    }
+                    break;
+            }
+            
+            return true;
+        }
+        
+        // Build request data for hourly endpoint
+        function buildHourlyRequest(parameters) {
+            const startDate = document.getElementById('startDate').value.replace(/-/g, '');
+            const endDate = document.getElementById('endDate').value.replace(/-/g, '');
+            
+            return {
+                latitude: currentLocation.lat,
+                longitude: currentLocation.lng,
+                start_date: startDate,
+                end_date: endDate,
+                parameters: parameters,
+                community: 'SB',  // Using Science/Buildings community like in example
+                format: 'JSON'
+            };
+        }
+        
+        // Build request data for daily probability endpoint (using target date + years back)
+        function buildDailyProbabilityRequest(parameters) {
+            const targetDate = document.getElementById('targetDate').value;
+            const yearsBack = parseInt(document.getElementById('yearsBack').value);
+            
+            // Convert date to MMDD format
+            const date = new Date(targetDate);
+            const monthDay = String(date.getMonth() + 1).padStart(2, '0') + 
+                           String(date.getDate()).padStart(2, '0');
+            
+            // Define thresholds for analysis
+            const thresholds = {
+                'T2M': { 'very_hot': 35, 'hot': 30, 'cold': 10, 'very_cold': 0 },
+                'PRECTOTCORR': { 'wet': 10, 'very_wet': 25, 'extreme_wet': 50 },
+                'WS2M': { 'windy': 10, 'very_windy': 15, 'extreme_windy': 20 },
+                'RH2M': { 'humid': 70, 'very_humid': 80, 'dry': 30, 'very_dry': 20 }
+            };
+            
+            return {
+                latitude: currentLocation.lat,
+                longitude: currentLocation.lng,
+                target_date: monthDay,
+                years_back: yearsBack,
+                parameters: parameters,
+                thresholds: thresholds
+            };
+        }
+        
+        // Build request data for daily endpoint with date range
+        function buildDailyRangeRequest(parameters) {
+            const startDate = document.getElementById('startDate').value.replace(/-/g, '');
+            const endDate = document.getElementById('endDate').value.replace(/-/g, '');
+            
+            return {
+                latitude: currentLocation.lat,
+                longitude: currentLocation.lng,
+                start_date: startDate,
+                end_date: endDate,
+                parameters: parameters,
+                community: 'SB',
+                format: 'JSON'
+            };
+        }
+        
+        // Build request data for monthly endpoint
+        function buildMonthlyRequest(parameters) {
+            // For monthly, we need year and month in YYYYMM format
+            const startDate = new Date(document.getElementById('startDate').value);
+            const endDate = new Date(document.getElementById('endDate').value);
+            
+            const startYearMonth = startDate.getFullYear() + String(startDate.getMonth() + 1).padStart(2, '0');
+            const endYearMonth = endDate.getFullYear() + String(endDate.getMonth() + 1).padStart(2, '0');
+            
+            return {
+                latitude: currentLocation.lat,
+                longitude: currentLocation.lng,
+                start_month: startYearMonth,
+                end_month: endYearMonth,
+                parameters: parameters,
+                community: 'SB'
+            };
+        }
+        
+        // Build request data for climatology endpoint
+        function buildClimatologyRequest(parameters) {
+            // For climatology, we just need the month (01-12 or "all")
+            const selectedMonth = document.getElementById('climatologyMonth').value;
+            
+            return {
+                latitude: currentLocation.lat,
+                longitude: currentLocation.lng,
+                month: selectedMonth,
+                parameters: parameters,
+                community: 'SB'
+            };
+        }
+        
+        // Function reserved for future direct API integration if needed
+        
+        // Display results based on granularity
+        function displayResultsBasedOnGranularity(results, granularity) {
+            // Clear previous results
+            clearPreviousResults();
+            
+            // Show results section
+            document.getElementById('resultsSection').style.display = 'block';
+            
+            // Enable export button
+            document.getElementById('exportBtn').disabled = false;
+            
+            switch(granularity) {
+                case 'hourly':
+                    if (results.data) {
+                        // Our backend response format
+                        displayHourlyResults(results.data);
+                    } else {
+                        console.error('Unknown hourly data format', results);
+                        showNotification('Error: Unexpected hourly data format from server', 'danger');
+                    }
+                    break;
+                    
+                case 'daily':
+                    // Check if we're in probability mode or direct mode
+                    if (results.results && results.results.comfort_index) {
+                        // Using probability endpoint (your original backend format)
+                        displayResults(results);
+                    } else if (results.data) {
+                        // Our backend response format
+                        displayDailyResults(results.data);
+                    } else {
+                        console.error('Unknown daily data format', results);
+                        showNotification('Error: Unexpected daily data format from server', 'danger');
+                    }
+                    break;
+                    
+                case 'monthly':
+                    if (results.data) {
+                        // Our backend response format
+                        displayMonthlyResults(results.data);
+                    } else {
+                        console.error('Unknown monthly data format', results);
+                        showNotification('Error: Unexpected monthly data format from server', 'danger');
+                    }
+                    break;
+                    
+                case 'climatology':
+                    if (results.data) {
+                        // Our backend response format
+                        displayClimatologyResults(results.data);
+                    } else {
+                        console.error('Unknown climatology data format', results);
+                        showNotification('Error: Unexpected climatology data format from server', 'danger');
+                    }
+                    break;
+            }
+            
+            // Scroll to results
+            document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function displayResults(results) {
+            // Clear previous results to ensure no conflicts
+            clearPreviousResults();
+            
+            // Show results section
+            document.getElementById('resultsSection').style.display = 'block';
+            
+            // Enable export button
+            document.getElementById('exportBtn').disabled = false;
+            
+            // Display probability cards
+            displayProbabilityCards(results.results);
+            
+            // Display charts
+            displayCharts(results.results);
+            
+            // Display comfort analysis if available
+            if (results.results.comfort_index) {
+                displayComfortAnalysis(results.results.comfort_index);
+            }
+            
+            // Scroll to results
+            document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        // Function to clear previous results to avoid conflicts
+        function clearPreviousResults() {
+            // Clear probability cards
+            document.getElementById('probabilityCards').innerHTML = '';
+            
+            // Clear comfort analysis
+            document.getElementById('comfortAnalysis').innerHTML = '';
+            
+            // Charts will be destroyed in their respective create functions
+        }
+        
+        // Display results for hourly data
+        function displayHourlyResults(results) {
+            // Prepare data for charts
+            const hourlyData = processHourlyData(results);
+            
+            // Create cards for each parameter
+            displayHourlyCards(hourlyData);
+            
+            // Create hourly time series chart
+            createHourlyTrendChart(hourlyData);
+            
+            // Create hourly distribution chart
+            createHourlyDistributionChart(hourlyData);
+        }
+        
+        // Process hourly data for display
+        function processHourlyData(results) {
+            const processedData = {};
+            
+            if (results && results.properties && results.properties.parameter) {
+                const parameters = results.properties.parameter;
+                
+                // Process each parameter
+                Object.keys(parameters).forEach(param => {
+                    const paramData = parameters[param];
+                    
+                    // Convert to array of {date, value} for charting
+                    const timeSeriesData = [];
+                    Object.keys(paramData).forEach(timestamp => {
+                        if (paramData[timestamp] !== -999) { // Skip missing data
+                            timeSeriesData.push({
+                                timestamp: timestamp,
+                                value: paramData[timestamp]
+                            });
+                        }
+                    });
+                    
+                    // Sort by timestamp
+                    timeSeriesData.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+                    
+                    // Store processed data
+                    processedData[param] = {
+                        name: getParameterInfo(param).displayName,
+                        unit: getParameterInfo(param).unit,
+                        icon: getParameterInfo(param).icon,
+                        data: timeSeriesData,
+                        statistics: calculateStatistics(timeSeriesData.map(d => d.value))
+                    };
+                });
+            }
+            
+            return processedData;
+        }
+        
+        // Display hourly data cards
+        function displayHourlyCards(hourlyData) {
+            const container = document.getElementById('probabilityCards');
+            container.innerHTML = ''; // Clear existing content
+            
+            Object.keys(hourlyData).forEach(param => {
+                const paramData = hourlyData[param];
+                const stats = paramData.statistics;
+                
+                // Create card
+                const card = document.createElement('div');
+                card.className = 'col-md-6 col-lg-3';
+                card.innerHTML = `
+                    <div class="card weather-card h-100">
+                        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">${paramData.icon} ${paramData.name}</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="text-center mb-3">
+                                <div class="display-5">${stats.mean.toFixed(1)}${paramData.unit}</div>
+                                <div class="text-muted">Average</div>
+                            </div>
+                            <div class="row text-center g-2">
+                                <div class="col-6">
+                                    <div class="border rounded p-2">
+                                        <div class="h5 mb-0">${stats.min.toFixed(1)}${paramData.unit}</div>
+                                        <small class="text-muted">Min</small>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="border rounded p-2">
+                                        <div class="h5 mb-0">${stats.max.toFixed(1)}${paramData.unit}</div>
+                                        <small class="text-muted">Max</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <small class="text-muted">
+                                    <strong>Hourly Data</strong><br>
+                                    ${paramData.data.length} data points
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                container.appendChild(card);
+            });
+        }
+        
+        // Create trend chart for hourly data
+        function createHourlyTrendChart(hourlyData) {
+            // First destroy any existing chart
+            if (window.trendChartInstance) {
+                window.trendChartInstance.destroy();
+                window.trendChartInstance = null;
+            }
+            
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            
+            // Prepare datasets
+            const datasets = [];
+            const colors = ['#1e88e5', '#43a047', '#e53935', '#fb8c00', '#8e24aa'];
+            
+            let i = 0;
+            Object.keys(hourlyData).forEach(param => {
+                const paramData = hourlyData[param];
+                
+                datasets.push({
+                    label: `${paramData.name} (${paramData.unit})`,
+                    data: paramData.data.map(d => ({
+                        x: d.timestamp.substring(0, 13) + ':00', // Format for hourly display
+                        y: d.value
+                    })),
+                    borderColor: colors[i % colors.length],
+                    backgroundColor: colors[i % colors.length] + '22',
+                    tension: 0.2,
+                    pointRadius: 2,
+                    borderWidth: 2
+                });
+                
+                i++;
+            });
+            
+            // Create chart
+            window.trendChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: { datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'category',
+                            title: {
+                                display: true,
+                                text: 'Hour'
+                            }
+                        },
+                        y: {
+                            beginAtZero: false
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Hourly Weather Trends'
+                        },
+                        legend: {
+                            position: 'top'
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Create distribution chart for hourly data
+        function createHourlyDistributionChart(hourlyData) {
+            // First destroy any existing chart
+            if (window.distributionChartInstance) {
+                window.distributionChartInstance.destroy();
+                window.distributionChartInstance = null;
+            }
+            
+            const ctx = document.getElementById('distributionChart').getContext('2d');
+            
+            // Select first parameter for distribution (simplification)
+            const paramKeys = Object.keys(hourlyData);
+            if (paramKeys.length === 0) return;
+            
+            const param = paramKeys[0];
+            const paramData = hourlyData[param];
+            
+            // Create bins for histogram
+            const values = paramData.data.map(d => d.value);
+            const min = Math.min(...values);
+            const max = Math.max(...values);
+            const binCount = 12;
+            const binWidth = (max - min) / binCount;
+            
+            const bins = Array(binCount).fill(0);
+            const binLabels = [];
+            
+            for (let i = 0; i < binCount; i++) {
+                const binMin = min + i * binWidth;
+                const binMax = binMin + binWidth;
+                binLabels.push(`${binMin.toFixed(1)} - ${binMax.toFixed(1)}`);
+            }
+            
+            values.forEach(val => {
+                const binIndex = Math.min(Math.floor((val - min) / binWidth), binCount - 1);
+                bins[binIndex]++;
+            });
+            
+            // Create chart
+            window.distributionChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: binLabels,
+                    datasets: [{
+                        label: `${paramData.name} Distribution`,
+                        data: bins,
+                        backgroundColor: '#42a5f5',
+                        borderColor: '#1e88e5',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: `${paramData.name} (${paramData.unit})`
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Frequency (hours)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Distribution of ${paramData.name} Values`
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Display daily data 
+        function displayDailyResults(results) {
+            // Prepare data for charts
+            const dailyData = processDailyData(results);
+            
+            // Create cards for each parameter
+            displayDailyCards(dailyData);
+            
+            // Create daily time series chart
+            createDailyTrendChart(dailyData);
+            
+            // Create daily distribution chart
+            createDailyDistributionChart(dailyData);
+        }
+        
+        // Process daily data for display
+        function processDailyData(results) {
+            const processedData = {};
+            
+            if (results && results.properties && results.properties.parameter) {
+                const parameters = results.properties.parameter;
+                
+                // Process each parameter
+                Object.keys(parameters).forEach(param => {
+                    const paramData = parameters[param];
+                    
+                    // Convert to array of {date, value} for charting
+                    const timeSeriesData = [];
+                    Object.keys(paramData).forEach(date => {
+                        if (paramData[date] !== -999) { // Skip missing data
+                            timeSeriesData.push({
+                                date: date,
+                                value: paramData[date]
+                            });
+                        }
+                    });
+                    
+                    // Sort by date
+                    timeSeriesData.sort((a, b) => a.date.localeCompare(b.date));
+                    
+                    // Store processed data
+                    processedData[param] = {
+                        name: getParameterInfo(param).displayName,
+                        unit: getParameterInfo(param).unit,
+                        icon: getParameterInfo(param).icon,
+                        data: timeSeriesData,
+                        statistics: calculateStatistics(timeSeriesData.map(d => d.value))
+                    };
+                });
+            }
+            
+            return processedData;
+        }
+        
+        // Display daily data cards
+        function displayDailyCards(dailyData) {
+            const container = document.getElementById('probabilityCards');
+            container.innerHTML = ''; // Clear existing content
+            
+            Object.keys(dailyData).forEach(param => {
+                const paramData = dailyData[param];
+                const stats = paramData.statistics;
+                
+                // Create card
+                const card = document.createElement('div');
+                card.className = 'col-md-6 col-lg-3';
+                card.innerHTML = `
+                    <div class="card weather-card h-100">
+                        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">${paramData.icon} ${paramData.name}</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="text-center mb-3">
+                                <div class="display-5">${stats.mean.toFixed(1)}${paramData.unit}</div>
+                                <div class="text-muted">Average</div>
+                            </div>
+                            <div class="row text-center g-2">
+                                <div class="col-6">
+                                    <div class="border rounded p-2">
+                                        <div class="h5 mb-0">${stats.min.toFixed(1)}${paramData.unit}</div>
+                                        <small class="text-muted">Min</small>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="border rounded p-2">
+                                        <div class="h5 mb-0">${stats.max.toFixed(1)}${paramData.unit}</div>
+                                        <small class="text-muted">Max</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <small class="text-muted">
+                                    <strong>Daily Data</strong><br>
+                                    ${paramData.data.length} data points
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                container.appendChild(card);
+            });
+        }
+        
+        // Create trend chart for daily data
+        function createDailyTrendChart(dailyData) {
+            // First destroy any existing chart
+            if (window.trendChartInstance) {
+                window.trendChartInstance.destroy();
+                window.trendChartInstance = null;
+            }
+            
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            
+            // Prepare datasets
+            const datasets = [];
+            const colors = ['#1e88e5', '#43a047', '#e53935', '#fb8c00', '#8e24aa'];
+            
+            let i = 0;
+            Object.keys(dailyData).forEach(param => {
+                const paramData = dailyData[param];
+                
+                datasets.push({
+                    label: `${paramData.name} (${paramData.unit})`,
+                    data: paramData.data.map(d => ({
+                        x: formatDateDisplay(d.date),
+                        y: d.value
+                    })),
+                    borderColor: colors[i % colors.length],
+                    backgroundColor: colors[i % colors.length] + '22',
+                    tension: 0.2,
+                    pointRadius: 3,
+                    borderWidth: 2
+                });
+                
+                i++;
+            });
+            
+            // Create chart
+            window.trendChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: { datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'category',
+                            title: {
+                                display: true,
+                                text: 'Date'
+                            }
+                        },
+                        y: {
+                            beginAtZero: false
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Daily Weather Trends'
+                        },
+                        legend: {
+                            position: 'top'
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Create distribution chart for daily data
+        function createDailyDistributionChart(dailyData) {
+            // First destroy any existing chart
+            if (window.distributionChartInstance) {
+                window.distributionChartInstance.destroy();
+                window.distributionChartInstance = null;
+            }
+            
+            const ctx = document.getElementById('distributionChart').getContext('2d');
+            
+            // Select first parameter for distribution (simplification)
+            const paramKeys = Object.keys(dailyData);
+            if (paramKeys.length === 0) return;
+            
+            const param = paramKeys[0];
+            const paramData = dailyData[param];
+            
+            // Create bins for histogram
+            const values = paramData.data.map(d => d.value);
+            const min = Math.min(...values);
+            const max = Math.max(...values);
+            const binCount = 10;
+            const binWidth = (max - min) / binCount;
+            
+            const bins = Array(binCount).fill(0);
+            const binLabels = [];
+            
+            for (let i = 0; i < binCount; i++) {
+                const binMin = min + i * binWidth;
+                const binMax = binMin + binWidth;
+                binLabels.push(`${binMin.toFixed(1)} - ${binMax.toFixed(1)}`);
+            }
+            
+            values.forEach(val => {
+                const binIndex = Math.min(Math.floor((val - min) / binWidth), binCount - 1);
+                bins[binIndex]++;
+            });
+            
+            // Create chart
+            window.distributionChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: binLabels,
+                    datasets: [{
+                        label: `${paramData.name} Distribution`,
+                        data: bins,
+                        backgroundColor: '#42a5f5',
+                        borderColor: '#1e88e5',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: `${paramData.name} (${paramData.unit})`
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Frequency (days)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Distribution of ${paramData.name} Values`
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Display monthly data results
+        function displayMonthlyResults(results) {
+            // Prepare data for charts
+            const monthlyData = processMonthlyData(results);
+            
+            // Create cards for each parameter
+            displayMonthlyCards(monthlyData);
+            
+            // Create monthly time series chart
+            createMonthlyTrendChart(monthlyData);
+            
+            // Create monthly distribution chart
+            createMonthlyDistributionChart(monthlyData);
+        }
+        
+        // Process monthly data for display
+        function processMonthlyData(results) {
+            const processedData = {};
+            
+            if (results && results.properties && results.properties.parameter) {
+                const parameters = results.properties.parameter;
+                
+                // Process each parameter
+                Object.keys(parameters).forEach(param => {
+                    const paramData = parameters[param];
+                    
+                    // Convert to array of {month, value} for charting
+                    const timeSeriesData = [];
+                    Object.keys(paramData).forEach(month => {
+                        if (paramData[month] !== -999) { // Skip missing data
+                            timeSeriesData.push({
+                                month: month,
+                                value: paramData[month]
+                            });
+                        }
+                    });
+                    
+                    // Sort by month
+                    timeSeriesData.sort((a, b) => a.month.localeCompare(b.month));
+                    
+                    // Store processed data
+                    processedData[param] = {
+                        name: getParameterInfo(param).displayName,
+                        unit: getParameterInfo(param).unit,
+                        icon: getParameterInfo(param).icon,
+                        data: timeSeriesData,
+                        statistics: calculateStatistics(timeSeriesData.map(d => d.value))
+                    };
+                });
+            }
+            
+            return processedData;
+        }
+        
+        // Display monthly data cards
+        function displayMonthlyCards(monthlyData) {
+            const container = document.getElementById('probabilityCards');
+            container.innerHTML = ''; // Clear existing content
+            
+            Object.keys(monthlyData).forEach(param => {
+                const paramData = monthlyData[param];
+                const stats = paramData.statistics;
+                
+                // Create card
+                const card = document.createElement('div');
+                card.className = 'col-md-6 col-lg-3';
+                card.innerHTML = `
+                    <div class="card weather-card h-100">
+                        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">${paramData.icon} ${paramData.name}</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="text-center mb-3">
+                                <div class="display-5">${stats.mean.toFixed(1)}${paramData.unit}</div>
+                                <div class="text-muted">Average</div>
+                            </div>
+                            <div class="row text-center g-2">
+                                <div class="col-6">
+                                    <div class="border rounded p-2">
+                                        <div class="h5 mb-0">${stats.min.toFixed(1)}${paramData.unit}</div>
+                                        <small class="text-muted">Min</small>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="border rounded p-2">
+                                        <div class="h5 mb-0">${stats.max.toFixed(1)}${paramData.unit}</div>
+                                        <small class="text-muted">Max</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <small class="text-muted">
+                                    <strong>Monthly Data</strong><br>
+                                    ${paramData.data.length} data points
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                container.appendChild(card);
+            });
+        }
+        
+        // Create trend chart for monthly data
+        function createMonthlyTrendChart(monthlyData) {
+            // First destroy any existing chart
+            if (window.trendChartInstance) {
+                window.trendChartInstance.destroy();
+                window.trendChartInstance = null;
+            }
+            
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            
+            // Prepare datasets
+            const datasets = [];
+            const colors = ['#1e88e5', '#43a047', '#e53935', '#fb8c00', '#8e24aa'];
+            
+            let i = 0;
+            Object.keys(monthlyData).forEach(param => {
+                const paramData = monthlyData[param];
+                
+                datasets.push({
+                    label: `${paramData.name} (${paramData.unit})`,
+                    data: paramData.data.map(d => ({
+                        x: formatMonthDisplay(d.month),
+                        y: d.value
+                    })),
+                    borderColor: colors[i % colors.length],
+                    backgroundColor: colors[i % colors.length] + '22',
+                    tension: 0.2,
+                    pointRadius: 4,
+                    borderWidth: 2
+                });
+                
+                i++;
+            });
+            
+            // Create chart
+            window.trendChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: { datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'category',
+                            title: {
+                                display: true,
+                                text: 'Month'
+                            }
+                        },
+                        y: {
+                            beginAtZero: false
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Monthly Weather Trends'
+                        },
+                        legend: {
+                            position: 'top'
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Create distribution chart for monthly data
+        function createMonthlyDistributionChart(monthlyData) {
+            // First destroy any existing chart
+            if (window.distributionChartInstance) {
+                window.distributionChartInstance.destroy();
+                window.distributionChartInstance = null;
+            }
+            
+            const ctx = document.getElementById('distributionChart').getContext('2d');
+            
+            // Select first parameter for distribution (simplification)
+            const paramKeys = Object.keys(monthlyData);
+            if (paramKeys.length === 0) return;
+            
+            const param = paramKeys[0];
+            const paramData = monthlyData[param];
+            
+            // For monthly data, we might have fewer data points, so use actual month values
+            const months = paramData.data.map(d => formatMonthDisplay(d.month));
+            const values = paramData.data.map(d => d.value);
+            
+            // Create chart
+            window.distributionChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: months,
+                    datasets: [{
+                        label: `${paramData.name} by Month`,
+                        data: values,
+                        backgroundColor: '#42a5f5',
+                        borderColor: '#1e88e5',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Month'
+                            }
+                        },
+                        y: {
+                            beginAtZero: false,
+                            title: {
+                                display: true,
+                                text: `${paramData.name} (${paramData.unit})`
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Monthly ${paramData.name} Values`
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Helper function to format month display from YYYYMM
+        function formatMonthDisplay(monthStr) {
+            // Convert YYYYMM to YYYY-MM format
+            const year = monthStr.substring(0, 4);
+            const month = monthStr.substring(4, 6);
+            
+            // Get month name
+            const date = new Date(year, parseInt(month) - 1, 1);
+            const monthName = date.toLocaleString('default', { month: 'short' });
+            
+            return `${monthName} ${year}`;
+        }
+        
+        // Helper function to format date display from YYYYMMDD
+        function formatDateDisplay(dateStr) {
+            // Convert YYYYMMDD to YYYY-MM-DD format
+            const year = dateStr.substring(0, 4);
+            const month = dateStr.substring(4, 6);
+            const day = dateStr.substring(6, 8);
+            
+            return `${year}-${month}-${day}`;
+        }
+        
+        // Display climatology data results
+        function displayClimatologyResults(results) {
+            // Prepare data for charts
+            const climatologyData = processClimatologyData(results);
+            
+            // Create cards for each parameter
+            displayClimatologyCards(climatologyData);
+            
+            // Create climatology comparison chart
+            createClimatologyTrendChart(climatologyData);
+            
+            // Create climatology distribution chart
+            createClimatologyDistributionChart(climatologyData);
+        }
+        
+        // Process climatology data for display
+        function processClimatologyData(results) {
+            const processedData = {};
+            
+            if (results && results.properties && results.properties.parameter) {
+                const parameters = results.properties.parameter;
+                
+                // Process each parameter
+                Object.keys(parameters).forEach(param => {
+                    const paramData = parameters[param];
+                    
+                    // Convert to array format for charting
+                    const monthlyData = [];
+                    Object.keys(paramData).forEach(month => {
+                        if (paramData[month] !== -999) { // Skip missing data
+                            monthlyData.push({
+                                month: month, // Will be a month identifier like "JAN", "FEB", etc.
+                                value: paramData[month]
+                            });
+                        }
+                    });
+                    
+                    // Store processed data
+                    processedData[param] = {
+                        name: getParameterInfo(param).displayName,
+                        unit: getParameterInfo(param).unit,
+                        icon: getParameterInfo(param).icon,
+                        data: monthlyData,
+                        statistics: calculateStatistics(monthlyData.map(d => d.value))
+                    };
+                });
+            }
+            
+            return processedData;
+        }
+        
+        // Display climatology data cards
+        function displayClimatologyCards(climatologyData) {
+            const container = document.getElementById('probabilityCards');
+            container.innerHTML = ''; // Clear existing content
+            
+            Object.keys(climatologyData).forEach(param => {
+                const paramData = climatologyData[param];
+                const stats = paramData.statistics;
+                
+                // Create card
+                const card = document.createElement('div');
+                card.className = 'col-md-6 col-lg-3';
+                card.innerHTML = `
+                    <div class="card weather-card h-100">
+                        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">${paramData.icon} ${paramData.name}</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="text-center mb-3">
+                                <div class="display-5">${stats.mean.toFixed(1)}${paramData.unit}</div>
+                                <div class="text-muted">Climatological Average</div>
+                            </div>
+                            <div class="row text-center g-2">
+                                <div class="col-6">
+                                    <div class="border rounded p-2">
+                                        <div class="h5 mb-0">${stats.min.toFixed(1)}${paramData.unit}</div>
+                                        <small class="text-muted">Min</small>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="border rounded p-2">
+                                        <div class="h5 mb-0">${stats.max.toFixed(1)}${paramData.unit}</div>
+                                        <small class="text-muted">Max</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <small class="text-muted">
+                                    <strong>Climatology Data</strong><br>
+                                    ${paramData.data.length} data points
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                container.appendChild(card);
+            });
+        }
+        
+        // Create trend chart for climatology data
+        function createClimatologyTrendChart(climatologyData) {
+            // First destroy any existing chart
+            if (window.trendChartInstance) {
+                window.trendChartInstance.destroy();
+                window.trendChartInstance = null;
+            }
+            
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            
+            // Prepare datasets
+            const datasets = [];
+            const colors = ['#1e88e5', '#43a047', '#e53935', '#fb8c00', '#8e24aa'];
+            
+            let i = 0;
+            Object.keys(climatologyData).forEach(param => {
+                const paramData = climatologyData[param];
+                
+                datasets.push({
+                    label: `${paramData.name} (${paramData.unit})`,
+                    data: paramData.data.map(d => ({
+                        x: d.month, // Month abbreviation
+                        y: d.value
+                    })),
+                    borderColor: colors[i % colors.length],
+                    backgroundColor: colors[i % colors.length] + '22',
+                    tension: 0.2,
+                    pointRadius: 5,
+                    borderWidth: 2
+                });
+                
+                i++;
+            });
+            
+            // Create chart
+            window.trendChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: { datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'category',
+                            title: {
+                                display: true,
+                                text: 'Month'
+                            }
+                        },
+                        y: {
+                            beginAtZero: false
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Climatological Averages by Month'
+                        },
+                        legend: {
+                            position: 'top'
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Create distribution chart for climatology data
+        function createClimatologyDistributionChart(climatologyData) {
+            // First destroy any existing chart
+            if (window.distributionChartInstance) {
+                window.distributionChartInstance.destroy();
+                window.distributionChartInstance = null;
+            }
+            
+            const ctx = document.getElementById('distributionChart').getContext('2d');
+            
+            // Select the first parameter for distribution chart
+            const paramKeys = Object.keys(climatologyData);
+            if (paramKeys.length === 0) return;
+            
+            const param = paramKeys[0];
+            const paramData = climatologyData[param];
+            
+            // For climatology, we can just show the monthly values as a bar chart
+            const months = paramData.data.map(d => d.month);
+            const values = paramData.data.map(d => d.value);
+            
+            // Create chart
+            window.distributionChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: months,
+                    datasets: [{
+                        label: `Monthly ${paramData.name}`,
+                        data: values,
+                        backgroundColor: '#42a5f5',
+                        borderColor: '#1e88e5',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Month'
+                            }
+                        },
+                        y: {
+                            beginAtZero: false,
+                            title: {
+                                display: true,
+                                text: `${paramData.name} (${paramData.unit})`
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Monthly Climatology for ${paramData.name}`
+                        }
+                    }
+                }
+            });
+        }
+
+        // Calculate statistics for a dataset
+        function calculateStatistics(values) {
+            if (!values || values.length === 0) {
+                return { mean: 0, median: 0, min: 0, max: 0, std: 0 };
+            }
+            
+            const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
+            const sortedValues = [...values].sort((a, b) => a - b);
+            const min = sortedValues[0];
+            const max = sortedValues[sortedValues.length - 1];
+            
+            let median;
+            if (sortedValues.length % 2 === 0) {
+                median = (sortedValues[sortedValues.length / 2 - 1] + sortedValues[sortedValues.length / 2]) / 2;
+            } else {
+                median = sortedValues[Math.floor(sortedValues.length / 2)];
+            }
+            
+            const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length;
+            const std = Math.sqrt(variance);
+            
+            return { mean, median, min, max, std };
+        }
+        
+        // Process hourly data for display
+        function processHourlyData(results) {
+            const processedData = {};
+            
+            if (results && results.properties && results.properties.parameter) {
+                const parameters = results.properties.parameter;
+                
+                // Process each parameter
+                Object.keys(parameters).forEach(param => {
+                    const paramData = parameters[param];
+                    
+                    // Extract hourly values
+                    const values = [];
+                    const timestamps = [];
+                    
+                    if (paramData.values) {
+                        Object.keys(paramData.values).forEach(date => {
+                            Object.keys(paramData.values[date]).forEach(hour => {
+                                const value = paramData.values[date][hour];
+                                if (value !== -999) { // Filter out missing data
+                                    values.push(value);
+                                    // Format timestamp for display (YYYY-MM-DD HH:00)
+                                    timestamps.push(`${date.substring(0, 4)}-${date.substring(4, 6)}-${date.substring(6, 8)} ${hour}:00`);
+                                }
+                            });
+                        });
+                    }
+                    
+                    // Calculate statistics
+                    const statistics = calculateStatistics(values);
+                    
+                    // Store processed data
+                    processedData[param] = {
+                        values: values,
+                        timestamps: timestamps,
+                        statistics: statistics,
+                        unit: paramData.units || '',
+                        longname: paramData.longname || param
+                    };
+                });
+            }
+            
+            return processedData;
+        }
+        
+        // Calculate basic statistics for data values
+        function calculateStatistics(values) {
+            if (values.length === 0) return { count: 0, min: 0, max: 0, mean: 0 };
+            
+            const count = values.length;
+            const min = Math.min(...values);
+            const max = Math.max(...values);
+            const sum = values.reduce((a, b) => a + b, 0);
+            const mean = sum / count;
+            
+            return {
+                count: count,
+                min: min,
+                max: max,
+                mean: mean
+            };
+        }
+        
+        // Display hourly data cards
+        function displayHourlyCards(hourlyData) {
+            const container = document.getElementById('probabilityCards');
+            container.innerHTML = '';
+            
+            Object.keys(hourlyData).forEach(param => {
+                const data = hourlyData[param];
+                const card = createHourlyDataCard(param, data);
+                container.appendChild(card);
+            });
+        }
+        
+        // Create card for hourly data parameter
+        function createHourlyDataCard(parameter, data) {
+            const col = document.createElement('div');
+            col.className = 'col-md-6 col-lg-4';
+            
+            const paramNames = {
+                'T2M': '🌡️ Temperature',
+                'PRECTOTCORR': '🌧️ Precipitation', 
+                'WS2M': '💨 Wind Speed',
+                'RH2M': '💧 Humidity'
+            };
+            
+            const displayName = paramNames[parameter] || data.longname || parameter;
+            
+            col.innerHTML = `
+                <div class="card weather-card h-100">
+                    <div class="card-header">
+                        <h6>${displayName}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <div class="row">
+                                <div class="col">
+                                    <small class="text-muted">Minimum</small>
+                                    <h5>${data.statistics?.min?.toFixed(1) || 'N/A'} ${data.unit}</h5>
+                                </div>
+                                <div class="col">
+                                    <small class="text-muted">Maximum</small>
+                                    <h5>${data.statistics?.max?.toFixed(1) || 'N/A'} ${data.unit}</h5>
+                                </div>
+                                <div class="col">
+                                    <small class="text-muted">Average</small>
+                                    <h5>${data.statistics?.mean?.toFixed(1) || 'N/A'} ${data.unit}</h5>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="text-muted small">
+                            Based on ${data.statistics?.count || 0} hourly data points
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            return col;
+        }
+        
+        // Create trend chart for hourly data
+        function createHourlyTrendChart(hourlyData) {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (trendChartInstance) {
+                trendChartInstance.destroy();
+                trendChartInstance = null;
+            }
+            
+            // Get first parameter for chart
+            const firstParam = Object.keys(hourlyData)[0];
+            if (!firstParam) return;
+            
+            const data = hourlyData[firstParam];
+            
+            // Create new chart with hourly timestamps
+            trendChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.timestamps || [],
+                    datasets: [{
+                        label: firstParam,
+                        data: data.values || [],
+                        borderColor: '#007bff',
+                        backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: {
+                            ticks: {
+                                maxTicksLimit: 12, // Limit number of ticks to avoid overcrowding
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        },
+                        y: {
+                            beginAtZero: false
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Hourly ${data.longname || firstParam} (${data.unit})`
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Create distribution chart for hourly data
+        function createHourlyDistributionChart(hourlyData) {
+            const ctx = document.getElementById('distributionChart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (distributionChartInstance) {
+                distributionChartInstance.destroy();
+                distributionChartInstance = null;
+            }
+            
+            // Get data for all parameters
+            const datasets = [];
+            const colors = ['#ff6384', '#36a2eb', '#ffce56', '#4bc0c0', '#9966ff'];
+            let colorIndex = 0;
+            
+            // Create bins for histogram
+            const allValues = [];
+            Object.keys(hourlyData).forEach(param => {
+                allValues.push(...hourlyData[param].values);
+            });
+            
+            // Calculate global min/max for all parameters to create common bins
+            const min = Math.min(...allValues);
+            const max = Math.max(...allValues);
+            
+            // Create 10 bins between min and max
+            const binCount = 10;
+            const binSize = (max - min) / binCount;
+            const bins = Array(binCount).fill(0).map((_, i) => min + i * binSize);
+            
+            // Format bin labels
+            const binLabels = bins.map(val => val.toFixed(1));
+            
+            // Count values in each bin for each parameter
+            Object.keys(hourlyData).forEach(param => {
+                const data = hourlyData[param];
+                const binData = Array(binCount).fill(0);
+                
+                data.values.forEach(val => {
+                    // Find which bin this value belongs to
+                    const binIndex = Math.min(Math.floor((val - min) / binSize), binCount - 1);
+                    if (binIndex >= 0) {
+                        binData[binIndex]++;
+                    }
+                });
+                
+                datasets.push({
+                    label: param,
+                    data: binData,
+                    backgroundColor: colors[colorIndex % colors.length],
+                    borderWidth: 1
+                });
+                colorIndex++;
+            });
+            
+            // Create histogram chart
+            distributionChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: binLabels,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Value Range'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Frequency'
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Value Distribution Histogram'
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Display results for daily data (direct API call)
+        function displayDailyResults(results) {
+            // Process the daily data
+            const dailyData = processDailyData(results);
+            
+            // Display daily data cards
+            displayDailyCards(dailyData);
+            
+            // Create daily trend chart
+            createDailyTrendChart(dailyData);
+            
+            // Create daily distribution chart
+            createDailyDistributionChart(dailyData);
+        }
+        
+        // Process daily data for display
+        function processDailyData(results) {
+            const processedData = {};
+            
+            if (results && results.properties && results.properties.parameter) {
+                const parameters = results.properties.parameter;
+                
+                // Process each parameter
+                Object.keys(parameters).forEach(param => {
+                    const paramData = parameters[param];
+                    
+                    // Extract daily values
+                    const values = [];
+                    const dates = [];
+                    
+                    if (paramData.values) {
+                        Object.keys(paramData.values).forEach(date => {
+                            const value = paramData.values[date];
+                            if (value !== -999) { // Filter out missing data
+                                values.push(value);
+                                // Format date for display (YYYY-MM-DD)
+                                dates.push(`${date.substring(0, 4)}-${date.substring(4, 6)}-${date.substring(6, 8)}`);
+                            }
+                        });
+                    }
+                    
+                    // Calculate statistics
+                    const statistics = calculateStatistics(values);
+                    
+                    // Store processed data
+                    processedData[param] = {
+                        values: values,
+                        dates: dates,
+                        statistics: statistics,
+                        unit: paramData.units || '',
+                        longname: paramData.longname || param
+                    };
+                });
+            }
+            
+            return processedData;
+        }
+        
+        // Display daily data cards
+        function displayDailyCards(dailyData) {
+            const container = document.getElementById('probabilityCards');
+            container.innerHTML = '';
+            
+            Object.keys(dailyData).forEach(param => {
+                const data = dailyData[param];
+                const card = createDailyDataCard(param, data);
+                container.appendChild(card);
+            });
+        }
+        
+        // Create card for daily data parameter
+        function createDailyDataCard(parameter, data) {
+            const col = document.createElement('div');
+            col.className = 'col-md-6 col-lg-4';
+            
+            const paramNames = {
+                'T2M': '🌡️ Temperature',
+                'PRECTOTCORR': '🌧️ Precipitation', 
+                'WS2M': '💨 Wind Speed',
+                'RH2M': '💧 Humidity'
+            };
+            
+            const displayName = paramNames[parameter] || data.longname || parameter;
+            
+            col.innerHTML = `
+                <div class="card weather-card h-100">
+                    <div class="card-header">
+                        <h6>${displayName}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <div class="row">
+                                <div class="col">
+                                    <small class="text-muted">Minimum</small>
+                                    <h5>${data.statistics?.min?.toFixed(1) || 'N/A'} ${data.unit}</h5>
+                                </div>
+                                <div class="col">
+                                    <small class="text-muted">Maximum</small>
+                                    <h5>${data.statistics?.max?.toFixed(1) || 'N/A'} ${data.unit}</h5>
+                                </div>
+                                <div class="col">
+                                    <small class="text-muted">Average</small>
+                                    <h5>${data.statistics?.mean?.toFixed(1) || 'N/A'} ${data.unit}</h5>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="text-muted small">
+                            Based on ${data.statistics?.count || 0} daily data points
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            return col;
+        }
+        
+        // Create trend chart for daily data
+        function createDailyTrendChart(dailyData) {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (trendChartInstance) {
+                trendChartInstance.destroy();
+                trendChartInstance = null;
+            }
+            
+            // Get first parameter for chart
+            const firstParam = Object.keys(dailyData)[0];
+            if (!firstParam) return;
+            
+            const data = dailyData[firstParam];
+            
+            // Create new chart with daily dates
+            trendChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.dates || [],
+                    datasets: [{
+                        label: firstParam,
+                        data: data.values || [],
+                        borderColor: '#007bff',
+                        backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: {
+                            ticks: {
+                                maxTicksLimit: 12, // Limit number of ticks to avoid overcrowding
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        },
+                        y: {
+                            beginAtZero: false
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Daily ${data.longname || firstParam} (${data.unit})`
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Create distribution chart for daily data
+        function createDailyDistributionChart(dailyData) {
+            // Use the same approach as hourly distribution chart
+            const ctx = document.getElementById('distributionChart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (distributionChartInstance) {
+                distributionChartInstance.destroy();
+                distributionChartInstance = null;
+            }
+            
+            // Get data for all parameters
+            const datasets = [];
+            const colors = ['#ff6384', '#36a2eb', '#ffce56', '#4bc0c0', '#9966ff'];
+            let colorIndex = 0;
+            
+            // Create bins for histogram
+            const allValues = [];
+            Object.keys(dailyData).forEach(param => {
+                allValues.push(...dailyData[param].values);
+            });
+            
+            // Calculate global min/max for all parameters to create common bins
+            const min = Math.min(...allValues);
+            const max = Math.max(...allValues);
+            
+            // Create 10 bins between min and max
+            const binCount = 10;
+            const binSize = (max - min) / binCount;
+            const bins = Array(binCount).fill(0).map((_, i) => min + i * binSize);
+            
+            // Format bin labels
+            const binLabels = bins.map(val => val.toFixed(1));
+            
+            // Count values in each bin for each parameter
+            Object.keys(dailyData).forEach(param => {
+                const data = dailyData[param];
+                const binData = Array(binCount).fill(0);
+                
+                data.values.forEach(val => {
+                    // Find which bin this value belongs to
+                    const binIndex = Math.min(Math.floor((val - min) / binSize), binCount - 1);
+                    if (binIndex >= 0) {
+                        binData[binIndex]++;
+                    }
+                });
+                
+                datasets.push({
+                    label: param,
+                    data: binData,
+                    backgroundColor: colors[colorIndex % colors.length],
+                    borderWidth: 1
+                });
+                colorIndex++;
+            });
+            
+            // Create histogram chart
+            distributionChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: binLabels,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Value Range'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Frequency'
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Value Distribution Histogram'
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Display results for monthly data
+        function displayMonthlyResults(results) {
+            // Process monthly data
+            const monthlyData = processMonthlyData(results);
+            
+            // Display monthly cards
+            displayMonthlyCards(monthlyData);
+            
+            // Create monthly trend chart
+            createMonthlyTrendChart(monthlyData);
+            
+            // Create monthly comparison chart
+            createMonthlyComparisonChart(monthlyData);
+        }
+        
+        // Process monthly data for display
+        function processMonthlyData(results) {
+            const processedData = {};
+            
+            if (results && results.properties && results.properties.parameter) {
+                const parameters = results.properties.parameter;
+                
+                // Process each parameter
+                Object.keys(parameters).forEach(param => {
+                    const paramData = parameters[param];
+                    
+                    // Extract monthly values
+                    const values = [];
+                    const labels = [];
+                    
+                    if (paramData.values) {
+                        Object.keys(paramData.values).forEach(year => {
+                            Object.keys(paramData.values[year]).forEach(month => {
+                                const value = paramData.values[year][month];
+                                if (value !== -999) { // Filter out missing data
+                                    values.push(value);
+                                    // Format month for display (YYYY-MM)
+                                    labels.push(`${year}-${month}`);
+                                }
+                            });
+                        });
+                    }
+                    
+                    // Calculate statistics
+                    const statistics = calculateStatistics(values);
+                    
+                    // Store processed data
+                    processedData[param] = {
+                        values: values,
+                        labels: labels,
+                        statistics: statistics,
+                        unit: paramData.units || '',
+                        longname: paramData.longname || param
+                    };
+                });
+            }
+            
+            return processedData;
+        }
+        
+        // Display monthly data cards
+        function displayMonthlyCards(monthlyData) {
+            const container = document.getElementById('probabilityCards');
+            container.innerHTML = '';
+            
+            Object.keys(monthlyData).forEach(param => {
+                const data = monthlyData[param];
+                const card = createMonthlyDataCard(param, data);
+                container.appendChild(card);
+            });
+        }
+        
+        // Create card for monthly data parameter
+        function createMonthlyDataCard(parameter, data) {
+            const col = document.createElement('div');
+            col.className = 'col-md-6 col-lg-4';
+            
+            const paramNames = {
+                'T2M': '🌡️ Temperature',
+                'PRECTOTCORR': '🌧️ Precipitation', 
+                'WS2M': '💨 Wind Speed',
+                'RH2M': '💧 Humidity',
+                'T2M_MAX': '🌡️ Max Temperature'
+            };
+            
+            const displayName = paramNames[parameter] || data.longname || parameter;
+            
+            col.innerHTML = `
+                <div class="card weather-card h-100">
+                    <div class="card-header">
+                        <h6>${displayName}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <div class="row">
+                                <div class="col">
+                                    <small class="text-muted">Minimum</small>
+                                    <h5>${data.statistics?.min?.toFixed(1) || 'N/A'} ${data.unit}</h5>
+                                </div>
+                                <div class="col">
+                                    <small class="text-muted">Maximum</small>
+                                    <h5>${data.statistics?.max?.toFixed(1) || 'N/A'} ${data.unit}</h5>
+                                </div>
+                                <div class="col">
+                                    <small class="text-muted">Average</small>
+                                    <h5>${data.statistics?.mean?.toFixed(1) || 'N/A'} ${data.unit}</h5>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="text-muted small">
+                            Based on ${data.statistics?.count || 0} monthly data points
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            return col;
+        }
+        
+        // Create trend chart for monthly data
+        function createMonthlyTrendChart(monthlyData) {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (trendChartInstance) {
+                trendChartInstance.destroy();
+                trendChartInstance = null;
+            }
+            
+            // Get first parameter for chart
+            const firstParam = Object.keys(monthlyData)[0];
+            if (!firstParam) return;
+            
+            const data = monthlyData[firstParam];
+            
+            // Create new chart with monthly labels
+            trendChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.labels || [],
+                    datasets: [{
+                        label: firstParam,
+                        data: data.values || [],
+                        borderColor: '#007bff',
+                        backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: {
+                            ticks: {
+                                maxTicksLimit: 12, // Limit number of ticks to avoid overcrowding
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        },
+                        y: {
+                            beginAtZero: false
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Monthly ${data.longname || firstParam} (${data.unit})`
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Create comparison chart for monthly data
+        function createMonthlyComparisonChart(monthlyData) {
+            const ctx = document.getElementById('distributionChart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (distributionChartInstance) {
+                distributionChartInstance.destroy();
+                distributionChartInstance = null;
+            }
+            
+            // For monthly data, create a chart comparing months across years
+            // Group data by month (1-12) for each parameter
+            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const monthlyAverages = {};
+            
+            Object.keys(monthlyData).forEach(param => {
+                monthlyAverages[param] = Array(12).fill(0);
+                const countByMonth = Array(12).fill(0);
+                
+                // Sum values by month
+                const data = monthlyData[param];
+                data.labels.forEach((label, i) => {
+                    const month = parseInt(label.split('-')[1]) - 1; // 0-indexed month
+                    if (month >= 0 && month < 12) {
+                        monthlyAverages[param][month] += data.values[i];
+                        countByMonth[month]++;
+                    }
+                });
+                
+                // Calculate averages
+                for (let i = 0; i < 12; i++) {
+                    if (countByMonth[i] > 0) {
+                        monthlyAverages[param][i] /= countByMonth[i];
+                    }
+                }
+            });
+            
+            // Create datasets for chart
+            const datasets = [];
+            const colors = ['#ff6384', '#36a2eb', '#ffce56', '#4bc0c0', '#9966ff'];
+            let colorIndex = 0;
+            
+            Object.keys(monthlyAverages).forEach(param => {
+                datasets.push({
+                    label: param,
+                    data: monthlyAverages[param],
+                    backgroundColor: colors[colorIndex % colors.length],
+                    borderColor: colors[colorIndex % colors.length],
+                    borderWidth: 1
+                });
+                colorIndex++;
+            });
+            
+            // Create monthly comparison chart
+            distributionChartInstance = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: monthNames,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        r: {
+                            beginAtZero: false
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Monthly Comparison'
+                        }
+                    }
+                }
+            });
+        }
+
+        function displayProbabilityCards(results) {
+            const container = document.getElementById('probabilityCards');
+            container.innerHTML = '';
+
+            Object.keys(results).forEach(param => {
+                if (param === 'comfort_index') return;
+                
+                const data = results[param];
+                const card = createProbabilityCard(param, data);
+                container.appendChild(card);
+            });
+        }
+
+        function createProbabilityCard(parameter, data) {
+            const col = document.createElement('div');
+            col.className = 'col-md-6 col-lg-4';
+
+            const paramNames = {
+                'T2M': '🌡️ Temperature',
+                'PRECTOTCORR': '🌧️ Precipitation', 
+                'WS2M': '💨 Wind Speed',
+                'RH2M': '💧 Humidity'
+            };
+
+            let probabilitiesHtml = '';
+            Object.entries(data.probabilities || {}).forEach(([condition, prob]) => {
+                const cssClass = prob > 50 ? 'probability-high' : 
+                               prob > 20 ? 'probability-medium' : 'probability-low';
+                
+                probabilitiesHtml += `
+                    <div class="d-flex justify-content-between">
+                        <span>${condition.replace('_', ' ')}</span>
+                        <span class="${cssClass}">${prob}%</span>
+                    </div>
+                `;
+            });
+
+            col.innerHTML = `
+                <div class="card weather-card h-100">
+                    <div class="card-header">
+                        <h6>${paramNames[parameter] || parameter}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <small class="text-muted">Historical Average</small>
+                            <h5>${data.statistics?.mean?.toFixed(1) || 'N/A'} ${data.unit}</h5>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <small class="text-muted">Probability of Conditions</small>
+                            ${probabilitiesHtml}
+                        </div>
+                        
+                        <div class="text-muted small">
+                            Based on ${data.statistics?.count || 0} data points
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            return col;
+        }
+
+        // Store chart instances so they can be destroyed before creating new ones
+        let trendChartInstance = null;
+        let distributionChartInstance = null;
+        
+        function displayCharts(results) {
+            // Historical trends chart
+            createTrendChart(results);
+            
+            // Probability distribution chart
+            createDistributionChart(results);
+        }
+
+        function createTrendChart(results) {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (trendChartInstance) {
+                trendChartInstance.destroy();
+                trendChartInstance = null;
+            }
+            
+            // Extract data for the first parameter as example
+            const firstParam = Object.keys(results).find(key => key !== 'comfort_index');
+            if (!firstParam) return;
+            
+            const data = results[firstParam];
+            
+            // Create new chart and store the instance
+            trendChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.historical_values?.map((_, i) => `Point ${i+1}`) || [],
+                    datasets: [{
+                        label: firstParam,
+                        data: data.historical_values || [],
+                        borderColor: '#007bff',
+                        backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: false
+                        }
+                    }
+                }
+            });
+        }
+
+        function createDistributionChart(results) {
+            const ctx = document.getElementById('distributionChart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (distributionChartInstance) {
+                distributionChartInstance.destroy();
+                distributionChartInstance = null;
+            }
+            
+            // Create probability comparison chart
+            const labels = [];
+            const datasets = [];
+            
+            Object.entries(results).forEach(([param, data]) => {
+                if (param === 'comfort_index') return;
+                
+                const probabilities = data.probabilities || {};
+                Object.keys(probabilities).forEach(condition => {
+                    if (!labels.includes(condition)) {
+                        labels.push(condition);
+                    }
+                });
+            });
+
+            const colors = ['#ff6384', '#36a2eb', '#ffce56', '#4bc0c0', '#9966ff'];
+            let colorIndex = 0;
+
+            Object.entries(results).forEach(([param, data]) => {
+                if (param === 'comfort_index') return;
+                
+                const probData = labels.map(label => data.probabilities?.[label] || 0);
+                
+                datasets.push({
+                    label: param,
+                    data: probData,
+                    backgroundColor: colors[colorIndex % colors.length],
+                    borderWidth: 1
+                });
+                colorIndex++;
+            });
+
+            // Create new chart and store the instance
+            distributionChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    }
+                }
+            });
+        }
+
+        function displayComfortAnalysis(comfortData) {
+            const container = document.getElementById('comfortAnalysis');
+            
+            const probabilities = comfortData.comfort_probabilities || {};
+            
+            // Determine the most likely comfort level
+            let maxProb = 0;
+            let likelyComfort = '';
+            
+            Object.entries(probabilities).forEach(([condition, prob]) => {
+                if (prob > maxProb) {
+                    maxProb = prob;
+                    likelyComfort = condition;
+                }
+            });
+            
+            // Generate recommendation text based on most likely comfort
+            let recommendationText = '';
+            let recommendationClass = '';
+            
+            switch(likelyComfort) {
+                case 'very_comfortable':
+                    recommendationText = 'Perfect conditions for outdoor activities! This is an ideal time for your planned activities.';
+                    recommendationClass = 'text-success';
+                    break;
+                case 'comfortable':
+                    recommendationText = 'Good conditions overall. You may want to bring a light jacket or sun protection depending on the season.';
+                    recommendationClass = 'text-info';
+                    break;
+                case 'uncomfortable':
+                    recommendationText = 'Be prepared for potentially challenging weather. Consider rescheduling or bringing appropriate gear.';
+                    recommendationClass = 'text-warning';
+                    break;
+                case 'very_uncomfortable':
+                    recommendationText = 'Weather conditions likely to be difficult. We recommend choosing an alternative date if possible.';
+                    recommendationClass = 'text-danger';
+                    break;
+                default:
+                    recommendationText = 'Insufficient data to make a comfort recommendation.';
+                    recommendationClass = 'text-secondary';
+            }
+            
+            container.innerHTML = `
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <div class="text-center p-3 bg-success bg-opacity-10 rounded">
+                            <div class="display-6 text-success">${probabilities.very_comfortable || 0}%</div>
+                            <div class="d-flex align-items-center justify-content-center">
+                                <i class="bi bi-emoji-laughing me-1"></i>
+                                <span>Very Comfortable</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center p-3 bg-info bg-opacity-10 rounded">
+                            <div class="display-6 text-info">${probabilities.comfortable || 0}%</div>
+                            <div class="d-flex align-items-center justify-content-center">
+                                <i class="bi bi-emoji-smile me-1"></i>
+                                <span>Comfortable</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center p-3 bg-warning bg-opacity-10 rounded">
+                            <div class="display-6 text-warning">${probabilities.uncomfortable || 0}%</div>
+                            <div class="d-flex align-items-center justify-content-center">
+                                <i class="bi bi-emoji-frown me-1"></i>
+                                <span>Uncomfortable</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center p-3 bg-danger bg-opacity-10 rounded">
+                            <div class="display-6 text-danger">${probabilities.very_uncomfortable || 0}%</div>
+                            <div class="d-flex align-items-center justify-content-center">
+                                <i class="bi bi-emoji-angry me-1"></i>
+                                <span>Very Uncomfortable</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-4 p-3 border-start border-4 ${recommendationClass} bg-light">
+                    <div class="d-flex">
+                        <div class="me-3">
+                            <i class="bi bi-info-circle-fill ${recommendationClass} fs-3"></i>
+                        </div>
+                        <div>
+                            <h5 class="${recommendationClass}">Recommendation</h5>
+                            <p>${recommendationText}</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-3 text-center text-muted">
+                    <small>Comfort index calculation based on temperature, humidity, wind speed and precipitation combination</small>
+                </div>
+            `;
+        }
+
+        function showLoading(show) {
+            const spinner = document.querySelector('.loading-spinner');
+            spinner.style.display = show ? 'block' : 'none';
+            
+            const analyzeBtn = document.getElementById('analyzeBtn');
+            analyzeBtn.disabled = show;
+            analyzeBtn.innerHTML = show ? 
+                '<span class="spinner-border spinner-border-sm me-2"></span>Analyzing...' :
+                '<i class="bi bi-graph-up me-1"></i> Analyze Weather Probability';
+        }
+        
+        // Show notification to user
+        function showNotification(message, type = 'info') {
+            // Create notification element if it doesn't exist
+            let notificationArea = document.getElementById('notificationArea');
+            
+            if (!notificationArea) {
+                notificationArea = document.createElement('div');
+                notificationArea.id = 'notificationArea';
+                notificationArea.style.position = 'fixed';
+                notificationArea.style.top = '20px';
+                notificationArea.style.right = '20px';
+                notificationArea.style.zIndex = '9999';
+                document.body.appendChild(notificationArea);
+            }
+            
+            const notification = document.createElement('div');
+            notification.className = `alert alert-${type} alert-dismissible fade show`;
+            notification.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            
+            notificationArea.appendChild(notification);
+            
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => notification.remove(), 300);
+            }, 5000);
+        }
+
+        async function exportData() {
+            if (!analysisResults) {
+                alert('No data available to export');
+                return;
+            }
+
+            try {
+                // Get selected time granularity
+                const granularity = document.querySelector('input[name="timeGranularity"]:checked').value;
+                
+                const parameters = [];
+                document.querySelectorAll('input[type="checkbox"]:checked').forEach(checkbox => {
+                    parameters.push(checkbox.value);
+                });
+                
+                // Build different export URLs based on granularity
+                let exportUrl;
+                
+                switch(granularity) {
+                    case 'hourly':
+                        const hourlyStartDate = document.getElementById('startDate').value.replace(/-/g, '');
+                        const hourlyEndDate = document.getElementById('endDate').value.replace(/-/g, '');
+                        
+                        exportUrl = `${API_BASE}/weather/export/hourly/csv?` + new URLSearchParams({
+                            latitude: currentLocation.lat,
+                            longitude: currentLocation.lng,
+                            start_date: hourlyStartDate,
+                            end_date: hourlyEndDate,
+                            parameters: parameters.join(',')
+                        });
+                        break;
+                        
+                    case 'daily':
+                        // Check if we're in probability mode or direct mode
+                        if (document.getElementById('customDateRange').style.display === 'none') {
+                            // Probability mode - use yearly export
+                            const targetDate = document.getElementById('targetDate').value;
+                            const date = new Date(targetDate);
+                            const yearsBack = parseInt(document.getElementById('yearsBack').value);
+                            
+                            // Calculate multiple years for historical data
+                            const currentYear = new Date().getFullYear();
+                            const startYear = currentYear - yearsBack;
+                            
+                            exportUrl = `${API_BASE}/weather/export/daily/csv?` + new URLSearchParams({
+                                latitude: currentLocation.lat,
+                                longitude: currentLocation.lng,
+                                start_year: startYear,
+                                end_year: currentYear,
+                                month_day: String(date.getMonth() + 1).padStart(2, '0') + String(date.getDate()).padStart(2, '0'),
+                                parameters: parameters.join(',')
+                            });
+                        } else {
+                            // Direct mode with date range
+                            const dailyStartDate = document.getElementById('startDate').value.replace(/-/g, '');
+                            const dailyEndDate = document.getElementById('endDate').value.replace(/-/g, '');
+                            
+                            exportUrl = `${API_BASE}/weather/export/daily/csv?` + new URLSearchParams({
+                                latitude: currentLocation.lat,
+                                longitude: currentLocation.lng,
+                                start_date: dailyStartDate,
+                                end_date: dailyEndDate,
+                                parameters: parameters.join(',')
+                            });
+                        }
+                        break;
+                        
+                    case 'monthly':
+                        // For monthly, we just need the years
+                        const startDate = new Date(document.getElementById('startDate').value);
+                        const endDate = new Date(document.getElementById('endDate').value);
+                        
+                        const startYear = startDate.getFullYear();
+                        const endYear = endDate.getFullYear();
+                        
+                        exportUrl = `${API_BASE}/weather/export/monthly/csv?` + new URLSearchParams({
+                            latitude: currentLocation.lat,
+                            longitude: currentLocation.lng,
+                            start_year: startYear,
+                            end_year: endYear,
+                            parameters: parameters.join(',')
+                        });
+                        break;
+                }
+
+                if (exportUrl) {
+                    // Download the file
+                    window.open(exportUrl, '_blank');
+                } else {
+                    throw new Error('Unable to generate export URL');
+                }
+                
+            } catch (error) {
+                console.error('Export error:', error);
+                alert('Error exporting data: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>
