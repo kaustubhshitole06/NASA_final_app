@@ -1,0 +1,3024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HorizonClime</title>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        /* NASA Space Apps Challenge official color palette */
+        :root {
+            --spaceapps-deep-blue: #07173F; /* PMS 295 C - Primary color (60%) */
+            --spaceapps-electric-blue: #0042A6; /* PMS 2146 C - Secondary color (30%) */
+            --spaceapps-neon-blue: #0960E1; /* Tertiary color */
+            --spaceapps-blue-yonder: #2E96F5; /* Supporting color */
+            --spaceapps-neon-yellow: #EAFE07; /* PMS Neon 387 - Accent color (10%) */
+            --spaceapps-martian-red: #8E1100; /* Supporting color */
+            --spaceapps-rocket-red: #E43700; /* PMS Bright Red C - Alert/danger */
+            --spaceapps-white: #FFFFFF; /* Text on dark backgrounds */
+            
+            /* Semantic color mappings */
+            --primary-color: var(--spaceapps-deep-blue);
+            --secondary-color: var(--spaceapps-electric-blue);
+            --accent-color: var(--spaceapps-neon-yellow);
+            --info-color: var(--spaceapps-blue-yonder);
+            --success-color: var(--spaceapps-neon-blue);
+            --warning-color: var(--spaceapps-neon-yellow);
+            --danger-color: var(--spaceapps-rocket-red);
+            --text-dark: #212121;
+            --text-light: var(--spaceapps-white);
+            --border-color: rgba(7, 23, 63, 0.2);
+            
+            /* Standard gradient - 45° angle from Electric Blue to Deep Blue */
+            --spaceapps-gradient: linear-gradient(45deg, var(--spaceapps-electric-blue), var(--spaceapps-deep-blue));
+            
+            /* Chart color sequence - following Space Apps palette */
+            --chart-color-1: var(--spaceapps-electric-blue);
+            --chart-color-2: var(--spaceapps-blue-yonder);
+            --chart-color-3: var(--spaceapps-neon-blue);
+            --chart-color-4: var(--spaceapps-neon-yellow);
+            --chart-color-5: var(--spaceapps-rocket-red);
+        }
+        
+        /* Map enhancements */
+        #map { 
+            height: 450px; 
+            width: 100%; 
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border: 1px solid rgba(11, 61, 145, 0.2);
+        }
+        
+        /* Card style improvements */
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+            overflow: hidden;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .card:hover {
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+        }
+        
+        .card-header {
+            background: var(--spaceapps-gradient);
+            color: var(--text-light);
+            border-bottom: none;
+            font-weight: 500;
+        }
+        
+        .card-body {
+            padding: 1.5rem;
+        }
+        
+        /* Weather card enhancements */
+        .weather-card { 
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border-radius: 12px;
+            border-left: 4px solid var(--spaceapps-electric-blue);
+            background: white;
+            padding: 1.2rem;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+        }
+        
+        .weather-card:hover { 
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 12px 20px rgba(0,0,0,0.12);
+        }
+        
+        /* Probability indicators - with accessibility improvements */
+        .probability-high { 
+            color: var(--spaceapps-rocket-red); 
+            font-weight: bold;
+            text-shadow: 0 0 1px rgba(228, 55, 0, 0.2);
+            position: relative;
+            padding: 2px 6px;
+            border-radius: 3px;
+            background-color: rgba(228, 55, 0, 0.1);
+        }
+        
+        .probability-high::before {
+            content: '⚠️ ';
+            font-size: 0.9em;
+        }
+        
+        .probability-medium { 
+            color: var(--spaceapps-neon-blue); 
+            font-weight: bold;
+            text-shadow: 0 0 1px rgba(9, 96, 225, 0.2);
+            position: relative;
+            padding: 2px 6px;
+            border-radius: 3px;
+            background-color: rgba(9, 96, 225, 0.1);
+        }
+        
+        .probability-medium::before {
+            content: '⚠ ';
+            font-size: 0.9em;
+        }
+        
+        .probability-low { 
+            color: var(--spaceapps-electric-blue); 
+            font-weight: bold;
+            text-shadow: 0 0 1px rgba(0, 66, 166, 0.2);
+            position: relative;
+            padding: 2px 6px;
+            border-radius: 3px;
+            background-color: rgba(0, 66, 166, 0.1);
+        }
+        
+        .probability-low::before {
+            content: '✓ ';
+            font-size: 0.9em;
+        }
+        
+        /* Loading spinner enhancements */
+        .loading-spinner { 
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            z-index: 1000;
+        }
+        
+        /* Form controls styling */
+        .form-control, .form-select {
+            border-radius: 6px;
+            border: 1px solid #dee2e6;
+            padding: 0.5rem 0.75rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        
+        .form-control:focus, .form-select:focus {
+            border-color: var(--spaceapps-electric-blue);
+            box-shadow: 0 0 0 0.2rem rgba(0, 66, 166, 0.25);
+        }
+        
+        /* Button enhancements - with consistent NASA colors and improved hierarchy */
+        .btn {
+            border-radius: 6px;
+            padding: 0.5rem 1rem;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+        
+        .btn-primary {
+            background-color: var(--spaceapps-electric-blue);
+            border-color: var(--spaceapps-electric-blue);
+            color: var(--text-light); /* Ensure WCAG AAA contrast */
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--spaceapps-neon-blue);
+            border-color: var(--spaceapps-neon-blue);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(9, 96, 225, 0.3);
+        }
+        
+        .btn-success {
+            background-color: var(--spaceapps-neon-blue);
+            border-color: var(--spaceapps-neon-blue);
+            color: #FFFFFF;
+        }
+        
+        .btn-success:hover {
+            background-color: var(--spaceapps-electric-blue);
+            border-color: var(--spaceapps-electric-blue);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(9, 96, 225, 0.3);
+        }
+        
+        .btn-warning {
+            background-color: var(--spaceapps-neon-yellow);
+            border-color: var(--spaceapps-neon-yellow);
+            color: var(--text-dark); /* Dark text on light background */
+        }
+        
+        .btn-warning:hover {
+            background-color: #d9e800;
+            border-color: #d9e800;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(234, 254, 7, 0.3);
+        }
+        
+        .btn-danger {
+            background-color: var(--spaceapps-rocket-red);
+            border-color: var(--spaceapps-rocket-red);
+            color: #FFFFFF;
+        }
+        
+        .btn-danger:hover {
+            background-color: var(--spaceapps-martian-red);
+            border-color: var(--spaceapps-martian-red);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(228, 55, 0, 0.3);
+        }
+        
+        .btn-info {
+            background-color: var(--spaceapps-blue-yonder);
+            border-color: var(--spaceapps-blue-yonder);
+            color: #FFFFFF;
+        }
+        
+        .btn-info:hover {
+            background-color: var(--spaceapps-neon-blue);
+            border-color: var(--spaceapps-neon-blue);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(46, 150, 245, 0.3);
+        }
+        
+        /* Premium/ML buttons with neon yellow accent */
+        .btn-premium, .btn-ml {
+            background-color: var(--spaceapps-deep-blue);
+            border: 1px solid var(--spaceapps-neon-yellow);
+            color: var(--spaceapps-neon-yellow);
+        }
+        
+        .btn-premium:hover, .btn-ml:hover {
+            background-color: rgba(234, 254, 7, 0.1);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(234, 254, 7, 0.3);
+        }
+        
+        /* Flood risk enhanced styles - with consistent NASA colors */
+        .risk-level-low { 
+            background: linear-gradient(145deg, var(--spaceapps-neon-blue), var(--spaceapps-electric-blue));
+            box-shadow: 0 4px 10px rgba(9, 96, 225, 0.4);
+            color: #FFFFFF; /* WCAG AAA contrast */
+            border: 2px solid var(--spaceapps-electric-blue);
+        }
+        
+        .risk-level-low::before {
+            content: '🔵 ';
+        }
+        
+        .risk-level-moderate { 
+            background: linear-gradient(145deg, var(--spaceapps-blue-yonder), var(--spaceapps-neon-blue));
+            box-shadow: 0 4px 10px rgba(46, 150, 245, 0.4);
+            color: var(--text-light); /* WCAG AAA contrast */
+            border: 2px solid var(--spaceapps-blue-yonder);
+        }
+        
+        .risk-level-moderate::before {
+            content: '🟡 ';
+        }
+        
+        .risk-level-high { 
+            background: linear-gradient(145deg, var(--spaceapps-neon-yellow), #d9e800);
+            box-shadow: 0 4px 10px rgba(234, 254, 7, 0.4);
+            color: var(--text-dark); /* WCAG AAA contrast on yellow */
+            border: 2px solid var(--spaceapps-neon-yellow);
+        }
+        
+        .risk-level-high::before {
+            content: '🟠 ';
+        }
+        
+        .risk-level-severe { 
+            background: linear-gradient(145deg, var(--spaceapps-rocket-red), var(--spaceapps-martian-red));
+            box-shadow: 0 4px 10px rgba(228, 55, 0, 0.4);
+            color: #FFFFFF; /* WCAG AAA contrast */
+            border: 2px solid var(--spaceapps-rocket-red);
+        }
+        
+        .risk-level-severe::before {
+            content: '🔴 ';
+        }
+        
+        #riskLevelCircle {
+            transition: all 0.4s ease;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.25);
+            font-weight: 700;
+            font-size: 1.2rem;
+            height: 90px !important;
+            width: 90px !important;
+            border: 3px solid rgba(255, 255, 255, 0.8);
+        }
+        
+        /* Notification system enhancements */
+        #notificationContainer {
+            position: fixed;
+            bottom: 25px;
+            right: 25px;
+            z-index: 9999;
+            max-width: 350px;
+            max-height: 80vh;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .notification {
+            margin-top: 5px;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            opacity: 0;
+            transform: translateX(50px);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+            border-left: 4px solid var(--spaceapps-electric-blue);
+        }
+        
+        .notification.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        
+        /* NASA-inspired badges and UI components */
+        .badge {
+            padding: 0.5em 0.8em;
+            border-radius: 4px;
+            font-weight: 500;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.5px;
+        }
+        
+        /* ML/AI badge with Space Apps neon yellow */
+        .badge-ml, .badge-ai {
+            background-color: var(--spaceapps-deep-blue);
+            color: var(--spaceapps-neon-yellow);
+            border: 1px solid var(--spaceapps-neon-yellow);
+        }
+        
+        /* Status badges with icons for accessibility */
+        .badge-danger {
+            background-color: var(--spaceapps-rocket-red);
+            color: white;
+        }
+        
+        .badge-danger::before {
+            content: '⚠️ ';
+        }
+        
+        .badge-warning {
+            background-color: var(--spaceapps-neon-yellow);
+            color: var(--text-dark);
+        }
+        
+        .badge-warning::before {
+            content: '⚠ ';
+        }
+        
+        .badge-success {
+            background-color: var(--spaceapps-neon-blue);
+            color: white;
+        }
+        
+        .badge-success::before {
+            content: '✓ ';
+        }
+        
+        /* Space Apps-themed alerts */
+        .alert-nasa {
+            background: var(--spaceapps-gradient);
+            color: white;
+            border-left: 4px solid var(--spaceapps-neon-yellow);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .alert-nasa::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            background-image: radial-gradient(white, rgba(255,255,255,0) 2px);
+            background-size: 30px 30px;
+            opacity: 0.1;
+            pointer-events: none;
+        }
+        
+        /* Chart container styling */
+        .chart-container {
+            position: relative;
+            padding: 1rem;
+            border-radius: 8px;
+            background-color: white;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+        }
+        
+        /* List group item improvements */
+        .list-group-item {
+            padding: 0.75rem 1.25rem;
+            border: 1px solid rgba(0,0,0,0.08);
+        }
+        
+        /* Chart-specific styles for NASA-themed data visualization */
+        .chart-title {
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 0.5rem;
+            font-size: 1rem;
+        }
+        
+        .chart-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .chart-legend-item {
+            display: flex;
+            align-items: center;
+            font-size: 0.8rem;
+        }
+        
+        .chart-legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+            margin-right: 5px;
+        }
+        
+        /* NASA-themed tooltips */
+        .nasa-tooltip {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .nasa-tooltip .tooltip-text {
+            visibility: hidden;
+            background: linear-gradient(135deg, var(--space-black), #1a1a1a);
+            color: white;
+            text-align: center;
+            padding: 6px 12px;
+            border-radius: 6px;
+            border-left: 3px solid var(--spaceapps-rocket-red);
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            width: 200px;
+            font-size: 0.9rem;
+        }
+        
+        .nasa-tooltip:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        /* Add starfield background to header */
+        .bg-dark {
+            background: linear-gradient(180deg, var(--spaceapps-deep-blue), var(--spaceapps-electric-blue)) !important;
+            background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAwIiBoZWlnaHQ9IjEwMDAiPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InRyYW5zcGFyZW50Ij48L3JlY3Q+PC9zdmc+');
+            position: relative;
+            overflow: hidden;
+            border-bottom: 2px solid var(--spaceapps-rocket-red);
+        }
+        
+        .bg-dark::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: radial-gradient(white, rgba(255,255,255,0) 2px);
+            background-size: 50px 50px;
+            opacity: 0.2;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Notification container for alerts -->
+    <div id="notificationContainer"></div>
+    
+    <div class="container-fluid">
+        <!-- Header -->
+        <div class="row bg-dark text-white py-3">
+            <div class="col">
+                <h1 class="mb-0">
+                    🛰️ HorizonClime
+                </h1>
+                <p class="mb-0">Plan your outdoor activities with historical weather insights</p>
+            </div>
+        </div>
+
+        <!-- Controls Panel -->
+        <div class="row py-4 bg-light">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>📍 Location & Date Selection</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <!-- Location Input -->
+                            <div class="col-md-5">
+                                <label class="form-label"><i class="bi bi-geo-alt"></i> Location</label>
+                                <div class="input-group mb-2">
+                                    <input type="text" id="locationSearch" class="form-control" 
+                                           placeholder="Enter city, country or address">
+                                    <button class="btn btn-primary" type="button" id="searchLocationBtn" onclick="searchLocation()">
+                                        <i class="bi bi-search"></i> Search
+                                    </button>
+                                    <button class="btn btn-outline-secondary" type="button" id="useCurrentLocation">
+                                        <i class="bi bi-geo"></i> My Location
+                                    </button>
+                                </div>
+                                <div class="mb-2 d-flex align-items-center">
+                                    <div class="location-badge p-1 px-2 bg-light border rounded d-inline-flex align-items-center">
+                                        <span id="selectedLocationName">No location selected</span>
+                                        <span class="ms-2 badge bg-primary rounded-pill" style="font-size:0.7rem;">
+                                            <span id="selectedLat">-</span>, <span id="selectedLng">-</span>
+                                        </span>
+                                    </div>
+                                    <button class="btn btn-sm btn-outline-success ms-2" id="saveLocationBtn" title="Save this location">
+                                        <i class="bi bi-bookmark-plus"></i>
+                                    </button>
+                                </div>
+                                
+                                <!-- Saved Locations Dropdown -->
+                                <div class="dropdown mt-1 mb-2">
+                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="savedLocationsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="bi bi-bookmark"></i> Saved Locations
+                                    </button>
+                                    <ul class="dropdown-menu" id="savedLocationsList" aria-labelledby="savedLocationsDropdown">
+                                        <li><span class="dropdown-item text-muted">No saved locations</span></li>
+                                    </ul>
+                                </div>
+                                
+                                <small class="text-muted">
+                                    <i class="bi bi-info-circle"></i> Search for a city, use saved locations, or click directly on the map
+                                </small>
+                            </div>
+
+                            <!-- Date Selection -->
+                            <div class="col-md-3">
+                                <label class="form-label">📅 Event Date</label>
+                                <input type="date" id="targetDate" class="form-control mb-2">
+                                <div class="d-flex align-items-center mb-2">
+                                    <small class="text-muted me-2">Historical data range:</small>
+                                    <select id="yearsBack" class="form-select form-select-sm" style="max-width:120px;">
+                                        <option value="5">5 years</option>
+                                        <option value="10" selected>10 years</option>
+                                        <option value="15">15 years</option>
+                                        <option value="20">20 years</option>
+                                    </select>
+                                </div>
+                                <!-- NASA POWER Data Community Selection -->
+                                <div class="d-flex align-items-center mb-2">
+                                    <small class="text-muted me-2">NASA POWER community:</small>
+                                    <select id="dataCommunity" class="form-select form-select-sm" style="max-width:120px;">
+                                        <option value="AG" selected title="Agriculture: data for agricultural applications">Agriculture (AG)</option>
+                                        <option value="RE" title="Renewable Energy: data for renewable energy applications">Renewable Energy (RE)</option>
+                                        <option value="SB" title="Sustainable Buildings: data for sustainable buildings applications">Sustainable Buildings (SB)</option>
+                                    </select>
+                                    <i class="bi bi-info-circle ms-1" title="Select the NASA POWER data community appropriate for your analysis"></i>
+                                </div>
+                                <!-- ML model selection (hidden by default) -->
+                                <div id="mlModelSelection" class="mt-2" style="display: none;">
+                                    <select id="mlModelType" class="form-select form-select-sm">
+                                        <option value="random_forest" selected>Random Forest</option>
+                                            <option value="gradient_boosting">Gradient Boosting</option>
+                                            <option value="linear">Linear Regression</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Weather Parameters -->
+                            <div class="col-md-4">
+                                <label class="form-label">🌦️ Weather Conditions to Analyze</label>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" value="T2M" id="paramTemp" checked>
+                                            <label class="form-check-label" for="paramTemp">
+                                                <span class="d-flex align-items-center">
+                                                    <i class="bi bi-thermometer-half me-1"></i> Temperature
+                                                </span>
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" value="PRECTOTCORR" id="paramPrecip" checked>
+                                            <label class="form-check-label" for="paramPrecip">
+                                                <span class="d-flex align-items-center">
+                                                    <i class="bi bi-cloud-rain me-1"></i> Precipitation
+                                                </span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" value="WS2M" id="paramWind" checked>
+                                            <label class="form-check-label" for="paramWind">
+                                                <span class="d-flex align-items-center">
+                                                    <i class="bi bi-wind me-1"></i> Wind Speed
+                                                </span>
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" value="RH2M" id="paramHumidity">
+                                            <label class="form-check-label" for="paramHumidity">
+                                                <span class="d-flex align-items-center">
+                                                    <i class="bi bi-moisture me-1"></i> Humidity
+                                                </span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    <button class="btn btn-sm btn-outline-secondary" type="button" id="selectAllParams">Select All</button>
+                                    <button class="btn btn-sm btn-outline-secondary ms-1" type="button" id="deselectAllParams">Deselect All</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <button id="analyzeBtn" class="btn btn-primary btn-lg me-2" style="font-weight: 600; letter-spacing: 0.5px; box-shadow: 0 4px 12px rgba(11, 61, 145, 0.25);">
+                                    <i class="bi bi-graph-up me-1"></i> Analyze Weather Probability
+                                </button>
+                                <button id="exportBtn" class="btn btn-outline-success me-2" disabled>
+                                    <i class="bi bi-download me-1"></i> Export Data (CSV)
+                                </button>
+                                <button id="showThresholdsBtn" class="btn btn-outline-info" type="button" 
+                                        data-bs-toggle="modal" data-bs-target="#thresholdsModal">
+                                    <i class="bi bi-info-circle me-1"></i> Weather Thresholds
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Map Section -->
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>🗺️ Select Location on Map</h5>
+                    </div>
+                    <div class="card-body p-0 position-relative">
+                        <div id="map"></div>
+                        <div class="loading-spinner">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div class="row mt-4" id="resultsSection" style="display: none;">
+            <!-- ML Enhanced Info -->
+            <div class="col-md-12 mb-3" id="mlInfoSection" style="display: none;">
+                <div class="alert alert-nasa d-flex">
+                    <div class="me-3">
+                        <i class="bi bi-robot fs-3" style="color: var(--spaceapps-neon-yellow);"></i>
+                    </div>
+                    <div>
+                        <h5 class="alert-heading" style="color: var(--spaceapps-neon-yellow);">Machine Learning Enhanced Prediction</h5>
+                        <p class="mb-0">This analysis uses advanced machine learning algorithms trained on historical NASA data to provide more accurate predictions. ML models identify complex weather patterns that traditional statistical methods may miss.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Weather Probability Cards -->
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span id="mlBadge" class="badge badge-ml" style="display: none;">
+                            <i class="bi bi-robot me-1"></i> ML Enhanced
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <div id="probabilityCards" class="row g-3">
+                            <!-- Dynamic probability cards will be inserted here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Section -->
+            <div class="col-md-6 mt-3">
+                <div class="card">
+                    <div class="card-header">
+                        <h6>📈 Historical Trends</h6>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="trendChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6 mt-3">
+                <div class="card">
+                    <div class="card-header">
+                        <h6>📊 Probability Distribution</h6>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="distributionChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+
+           
+            <!-- Flood Risk Assessment -->
+            <div class="col-md-12 mt-3">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6>🌊 Flood Risk Assessment</h6>
+                        <button class="btn btn-sm btn-info" id="checkFloodRiskBtn">
+                            <i class="bi bi-water"></i> Check Flood Risk
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <!-- Current Flood Risk -->
+                        <div id="currentFloodRisk" style="display: none;">
+                            <h5 class="mb-3">Current Flood Risk</h5>
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="risk-level-indicator me-3">
+                                    <div id="riskLevelCircle" class="rounded-circle d-flex align-items-center justify-content-center" 
+                                         style="width: 80px; height: 80px; font-weight: bold; color: white;">
+                                        LOW
+                                    </div>
+                                </div>
+                                <div>
+                                    <h6 id="riskLevelText">Low Risk</h6>
+                                    <p id="riskDescription" class="text-muted">No significant flood risk detected for this area.</p>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>Contributing Factors</h6>
+                                    <ul id="riskFactorsList" class="list-group">
+                                        <!-- Risk factors will be inserted here -->
+                                    </ul>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>Recommendations</h6>
+                                    <ul id="recommendationsList" class="list-group">
+                                        <!-- Recommendations will be inserted here -->
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Flood Risk Forecast -->
+                        <div id="floodRiskForecast" class="mt-4" style="display: none;">
+                            <h5>5-Day Flood Risk Forecast</h5>
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Precipitation</th>
+                                            <th>Risk Level</th>
+                                            <th>Description</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="forecastTableBody">
+                                        <!-- Forecast data will be inserted here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <!-- Initial State -->
+                        <div id="floodRiskPlaceholder" class="text-center py-5">
+                            <div class="mb-3">
+                                <i class="bi bi-water" style="font-size: 3rem;"></i>
+                            </div>
+                            <h5>Flood Risk Assessment</h5>
+                            <p class="text-muted">Click the "Check Flood Risk" button to analyze flood risk for this location.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Thresholds Modal -->
+    <div class="modal fade" id="thresholdsModal" tabindex="-1" aria-labelledby="thresholdsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="thresholdsModalLabel">
+                        <i class="bi bi-info-circle me-2"></i> Weather Condition Thresholds
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>The analysis uses these threshold values to determine different weather conditions:</p>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Parameter</th>
+                                    <th>Condition</th>
+                                    <th>Threshold</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td rowspan="4" class="align-middle">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-thermometer-half me-2 text-danger"></i> Temperature
+                                        </div>
+                                    </td>
+                                    <td>Very Hot</td>
+                                    <td>≥ 35°C</td>
+                                    <td>Extreme heat, high risk of heat-related illnesses</td>
+                                </tr>
+                                <tr>
+                                    <td>Hot</td>
+                                    <td>≥ 30°C</td>
+                                    <td>Significantly warm, uncomfortable for many activities</td>
+                                </tr>
+                                <tr>
+                                    <td>Cold</td>
+                                    <td>≤ 10°C</td>
+                                    <td>Chilly conditions requiring warm clothing</td>
+                                </tr>
+                                <tr>
+                                    <td>Very Cold</td>
+                                    <td>≤ 0°C</td>
+                                    <td>Freezing conditions with risk of hypothermia</td>
+                                </tr>
+                                
+                                <tr>
+                                    <td rowspan="3" class="align-middle">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-cloud-rain me-2 text-primary"></i> Precipitation
+                                        </div>
+                                    </td>
+                                    <td>Wet</td>
+                                    <td>≥ 10 mm</td>
+                                    <td>Noticeable rainfall that may affect outdoor activities</td>
+                                </tr>
+                                <tr>
+                                    <td>Very Wet</td>
+                                    <td>≥ 25 mm</td>
+                                    <td>Heavy rainfall, likely causing disruptions</td>
+                                </tr>
+                                <tr>
+                                    <td>Extreme Wet</td>
+                                    <td>≥ 50 mm</td>
+                                    <td>Severe rainfall with potential flooding risk</td>
+                                </tr>
+                                
+                                <tr>
+                                    <td rowspan="3" class="align-middle">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-wind me-2 text-secondary"></i> Wind Speed
+                                        </div>
+                                    </td>
+                                    <td>Windy</td>
+                                    <td>≥ 10 m/s</td>
+                                    <td>Significant wind affecting comfort</td>
+                                </tr>
+                                <tr>
+                                    <td>Very Windy</td>
+                                    <td>≥ 15 m/s</td>
+                                    <td>Strong winds with potential for minor damage</td>
+                                </tr>
+                                <tr>
+                                    <td>Extreme Windy</td>
+                                    <td>≥ 20 m/s</td>
+                                    <td>Dangerous wind conditions</td>
+                                </tr>
+                                
+                                <tr>
+                                    <td rowspan="4" class="align-middle">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-moisture me-2 text-info"></i> Humidity
+                                        </div>
+                                    </td>
+                                    <td>Humid</td>
+                                    <td>≥ 70%</td>
+                                    <td>Noticeably humid, may cause discomfort</td>
+                                </tr>
+                                <tr>
+                                    <td>Very Humid</td>
+                                    <td>≥ 80%</td>
+                                    <td>High humidity causing significant discomfort</td>
+                                </tr>
+                                <tr>
+                                    <td>Dry</td>
+                                    <td>≤ 30%</td>
+                                    <td>Low humidity, may cause dry skin and eyes</td>
+                                </tr>
+                                <tr>
+                                    <td>Very Dry</td>
+                                    <td>≤ 20%</td>
+                                    <td>Extremely low humidity, potential health concerns</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="alert alert-info mt-3">
+                        <h6><i class="bi bi-lightbulb me-2"></i>How We Calculate Comfort Index</h6>
+                        <p class="mb-0">The comfort index combines temperature, humidity, wind speed and precipitation data to determine overall outdoor comfort. It considers factors such as heat index, wind chill, and general weather conditions to provide a comprehensive assessment of how comfortable the conditions might feel.</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Global variables
+        let map;
+        let marker;
+        let currentLocation = { lat: 12.97, lng: 77.59 }; // Default to Bangalore
+        let analysisResults = null;
+        let satelliteLayers = {};
+        let baseLayersControl;
+        let overlayLayersControl;
+        let currentBaseLayer = null;
+        let currentOverlays = {};
+
+        // API Base URL - adjust for your FastAPI server
+        const API_BASE = 'http://127.0.0.1:8082';
+        
+        // Saved locations for quick access
+        let savedLocations = [];
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            // Configure Chart.js defaults with NASA-themed colors
+            Chart.defaults.borderColor = 'var(--border-color)';
+            Chart.defaults.color = 'var(--text-dark)';
+            Chart.defaults.font.family = "'Roboto', 'Helvetica Neue', sans-serif";
+            
+            // NASA-themed chart color palette (colorblind-friendly)
+            window.chartColors = [
+                'var(--chart-color-1)', // NASA Blue (Temperature)
+                'var(--chart-color-2)', // Light Blue (Precipitation)
+                'var(--chart-color-3)', // Amber (Wind)
+                'var(--chart-color-4)', // Green (Humidity)
+                'var(--chart-color-5)'  // Red (Alerts/Comfort)
+            ];
+            
+            initializeMap();
+            setupEventListeners();
+            setDefaultDate();
+            loadSatelliteLayers();
+            loadSavedLocations();
+        });
+
+        function initializeMap() {
+            // Initialize Leaflet map
+            map = L.map('map').setView([currentLocation.lat, currentLocation.lng], 3);
+            
+            // Add OpenStreetMap tiles as default
+            const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            // Initial base layers
+            const baseLayers = {
+                "OpenStreetMap": osmLayer
+            };
+            
+            // Empty overlays to start
+            const overlays = {};
+            
+            // Initialize layer controls
+            baseLayersControl = L.control.layers(baseLayers, overlays).addTo(map);
+            currentBaseLayer = osmLayer;
+
+            // Add initial marker
+            marker = L.marker([currentLocation.lat, currentLocation.lng]).addTo(map);
+            updateLocationDisplay();
+
+            // Handle map clicks
+            map.on('click', function(e) {
+                currentLocation = { lat: e.latlng.lat, lng: e.latlng.lng };
+                
+                if (marker) {
+                    map.removeLayer(marker);
+                }
+                marker = L.marker([currentLocation.lat, currentLocation.lng]).addTo(map);
+                
+                // Try to reverse geocode the clicked location
+                fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${currentLocation.lat}&lon=${currentLocation.lng}&zoom=10`)
+                    .then(response => response.json())
+                    .then(data => {
+                        let locationName = 'Selected Location';
+                        
+                        if (data && data.display_name) {
+                            const parts = data.display_name.split(',');
+                            // Get a simplified name
+                            if (parts.length >= 3) {
+                                locationName = parts[1].trim() + ', ' + parts[parts.length - 1].trim();
+                            } else {
+                                locationName = data.display_name;
+                            }
+                            
+                            // Show in popup
+                            marker.bindPopup(`<b>${data.display_name}</b>`).openPopup();
+                        }
+                        
+                        // Update display with the name
+                        updateLocationDisplay(locationName);
+                    })
+                    .catch(err => {
+                        // If reverse geocoding fails, just show coordinates
+                        updateLocationDisplay('Selected Location');
+                        console.error("Error reverse geocoding:", err);
+                    });
+            });
+        }
+        
+        async function loadSatelliteLayers() {
+            try {
+                // Show loading indicator on the map
+                const loadingDiv = document.createElement('div');
+                loadingDiv.id = 'satellite-loading';
+                loadingDiv.innerHTML = `
+                    <div style="
+                        position: absolute;
+                        top: 10px;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        background: rgba(255,255,255,0.8);
+                        padding: 5px 15px;
+                        border-radius: 20px;
+                        z-index: 1000;
+                        display: flex;
+                        align-items: center;
+                        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+                    ">
+                        <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <span>Loading NASA Satellite Layers...</span>
+                    </div>
+                `;
+                document.getElementById('map').appendChild(loadingDiv);
+                
+                // Fetch available satellite layers
+                const response = await fetch(`${API_BASE}/satellite/layers`);
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    // Set up NASA GIBS layers
+                    setupSatelliteLayers(data.layers, data.categories);
+                    
+                    // Add notification
+                    const notification = document.createElement('div');
+                    notification.className = 'alert alert-success alert-dismissible fade show';
+                    notification.setAttribute('role', 'alert');
+                    notification.innerHTML = `
+                        <strong>NASA Satellite Imagery Loaded!</strong> Use the layers control <i class="bi bi-layers"></i> on the map to explore different imagery.
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    `;
+                    
+                    const controlsCard = document.querySelector('.card-header');
+                    if (controlsCard) {
+                        controlsCard.parentNode.insertBefore(notification, controlsCard);
+                        
+                        // Auto dismiss after 8 seconds
+                        setTimeout(() => {
+                            notification.classList.remove('show');
+                            setTimeout(() => notification.remove(), 500);
+                        }, 8000);
+                    }
+                } else {
+                    throw new Error('Failed to load satellite layers');
+                }
+            } catch (error) {
+                console.error('Error loading satellite layers:', error);
+                
+                // Show error notification
+                const errorNotification = document.createElement('div');
+                errorNotification.className = 'alert alert-warning alert-dismissible fade show';
+                errorNotification.setAttribute('role', 'alert');
+                errorNotification.innerHTML = `
+                    <strong>Satellite Imagery Unavailable</strong> Could not load NASA GIBS layers. The app will continue to work without satellite imagery.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                `;
+                
+                const controlsCard = document.querySelector('.card-header');
+                if (controlsCard) {
+                    controlsCard.parentNode.insertBefore(errorNotification, controlsCard);
+                }
+            } finally {
+                // Remove loading indicator
+                const loadingDiv = document.getElementById('satellite-loading');
+                if (loadingDiv) {
+                    loadingDiv.remove();
+                }
+            }
+        }
+        
+        function setupSatelliteLayers(layers, categories) {
+            // Get current date for layer initialization
+            const today = new Date();
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+            
+            const dateStr = yesterday.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+            
+            // Create base layers (true color imagery)
+            if (categories["Base Layers"]) {
+                categories["Base Layers"].forEach(layerId => {
+                    const layer = layers.find(l => l.id === layerId);
+                    if (layer) {
+                        // Create NASA GIBS TileLayer
+                        const gibsLayer = L.tileLayer(`${API_BASE}/satellite/tile/{z}/{y}/{x}?layer=${layerId}&date=${dateStr}`, {
+                            attribution: 'NASA GIBS',
+                            maxZoom: 9,
+                            name: layer.name,
+                            id: layerId
+                        });
+                        
+                        // Add to base layers control
+                        satelliteLayers[layerId] = gibsLayer;
+                        baseLayersControl.addBaseLayer(gibsLayer, `🛰️ ${layer.name}`);
+                    }
+                });
+            }
+            
+            // Create overlay layers for weather data
+            for (const [category, layerIds] of Object.entries(categories)) {
+                if (category !== "Base Layers") {
+                    layerIds.forEach(layerId => {
+                        const layer = layers.find(l => l.id === layerId);
+                        if (layer) {
+                            // Create NASA GIBS overlay layer
+                            const overlayLayer = L.tileLayer(`${API_BASE}/satellite/tile/{z}/{y}/{x}?layer=${layerId}&date=${dateStr}`, {
+                                attribution: 'NASA GIBS',
+                                maxZoom: 9,
+                                opacity: 0.7,
+                                transparent: true,
+                                name: layer.name,
+                                id: layerId
+                            });
+                            
+                            // Add to overlay control
+                            satelliteLayers[layerId] = overlayLayer;
+                            
+                            // Prefix with emoji based on category
+                            let prefix = '🛰️';
+                            if (category === 'Weather') prefix = '🌦️';
+                            if (category === 'Environment') prefix = '🌿';
+                            if (category === 'Night') prefix = '🌃';
+                            
+                            baseLayersControl.addOverlay(overlayLayer, `${prefix} ${layer.name}`);
+                        }
+                    });
+                }
+            }
+            
+            // Add satellite date control
+            addSatelliteDateControl();
+        }
+
+        function addSatelliteDateControl() {
+            // Create a custom control for satellite imagery date selection
+            const SatelliteDateControl = L.Control.extend({
+                options: {
+                    position: 'topright'
+                },
+                
+                onAdd: function(map) {
+                    const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control satellite-date-control');
+                    container.style.background = 'white';
+                    container.style.padding = '8px';
+                    container.style.borderRadius = '4px';
+                    
+                    const today = new Date();
+                    const yesterday = new Date(today);
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    
+                    const dateStr = yesterday.toISOString().split('T')[0];
+                    
+                    container.innerHTML = `
+                        <div style="margin-bottom:5px;font-weight:bold;">Satellite Imagery Date</div>
+                        <input type="date" id="satelliteDate" class="form-control" value="${dateStr}" max="${dateStr}">
+                        <button id="updateSatelliteDate" class="btn btn-sm btn-primary mt-1">Update</button>
+                    `;
+                    
+                    L.DomEvent.disableClickPropagation(container);
+                    
+                    setTimeout(() => {
+                        document.getElementById('updateSatelliteDate').addEventListener('click', function() {
+                            updateSatelliteLayerDate();
+                        });
+                    }, 500);
+                    
+                    return container;
+                }
+            });
+            
+            // Add the control to the map
+            new SatelliteDateControl().addTo(map);
+        }
+        
+        function updateSatelliteLayerDate() {
+            const dateInput = document.getElementById('satelliteDate');
+            if (!dateInput) return;
+            
+            const newDate = dateInput.value;
+            
+            // Update all satellite layers with new date
+            Object.keys(satelliteLayers).forEach(layerId => {
+                const layer = satelliteLayers[layerId];
+                
+                // Update the layer URL
+                const newUrl = `${API_BASE}/satellite/tile/{z}/{y}/{x}?layer=${layerId}&date=${newDate}`;
+                layer.setUrl(newUrl);
+            });
+            
+            // Show a notification
+            alert(`Satellite imagery updated to ${newDate}`);
+        }
+
+        function setupEventListeners() {
+            // Analyze button
+            document.getElementById('analyzeBtn').addEventListener('click', analyzeWeatherProbability);
+            
+            // Export button
+            document.getElementById('exportBtn').addEventListener('click', exportData);
+            
+            // Current location button
+            document.getElementById('useCurrentLocation').addEventListener('click', getCurrentLocation);
+            
+            // Location search (basic implementation)
+            document.getElementById('locationSearch').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    searchLocation();
+                }
+            });
+            
+            // Location search autocomplete suggestions
+            document.getElementById('locationSearch').addEventListener('input', function(e) {
+                suggestCities(e.target.value);
+            });
+            
+            // Search location button
+            document.getElementById('searchLocationBtn').addEventListener('click', searchLocation);
+            
+            // Save location button
+            document.getElementById('saveLocationBtn').addEventListener('click', saveCurrentLocation);
+            
+            // Flood risk button
+            document.getElementById('checkFloodRiskBtn').addEventListener('click', checkFloodRisk);
+            
+            // Parameter selection
+            document.getElementById('selectAllParams').addEventListener('click', function() {
+                document.querySelectorAll('input[type="checkbox"][id^="param"]').forEach(checkbox => {
+                    checkbox.checked = true;
+                });
+            });
+            
+            document.getElementById('deselectAllParams').addEventListener('click', function() {
+                document.querySelectorAll('input[type="checkbox"][id^="param"]').forEach(checkbox => {
+                    checkbox.checked = false;
+                });
+            });
+            
+            // ML prediction is handled internally without a visible toggle
+            
+            // Add satellite imagery tab to controls panel
+            addSatelliteTab();
+        }
+        
+        // Function to suggest cities as user types
+        function suggestCities(query) {
+            if (query.length < 3) return; // Only suggest after 3 characters
+            
+            // Throttle API calls
+            if (window.lastSuggestTime && Date.now() - window.lastSuggestTime < 500) {
+                clearTimeout(window.suggestTimeout);
+            }
+            
+            window.lastSuggestTime = Date.now();
+            
+            window.suggestTimeout = setTimeout(() => {
+                fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`)
+                    .then(response => response.json())
+                    .then(data => {
+                        // Clear existing options except the built-in ones
+                        const datalist = document.getElementById('popularCities');
+                        const defaultCities = ['New York', 'London', 'Tokyo', 'Paris', 'Sydney', 'Dubai', 'Mumbai', 'Rio de Janeiro', 'Cape Town'];
+                        
+                        // Remove dynamic suggestions (keep default cities)
+                        Array.from(datalist.options).forEach(option => {
+                            if (!defaultCities.includes(option.value)) {
+                                datalist.removeChild(option);
+                            }
+                        });
+                        
+                        // Add new suggestions
+                        data.forEach(item => {
+                            // Create simple display name from the complex one
+                            const nameParts = item.display_name.split(',');
+                            let simpleName = nameParts[0];
+                            
+                            if (nameParts.length > 2) {
+                                // Add country or region for disambiguation
+                                simpleName += ', ' + nameParts[nameParts.length - 1].trim();
+                            }
+                            
+                            // Don't add duplicates or items in our default list
+                            if (!defaultCities.includes(simpleName)) {
+                                const option = document.createElement('option');
+                                option.value = simpleName;
+                                option.setAttribute('data-lat', item.lat);
+                                option.setAttribute('data-lng', item.lon);
+                                datalist.appendChild(option);
+                            }
+                        });
+                    })
+                    .catch(err => console.error('Error getting city suggestions:', err));
+            }, 500);
+        }
+        
+        // Function to save the current location
+        function saveCurrentLocation() {
+            const locationName = document.getElementById('selectedLocationName').textContent;
+            const lat = parseFloat(document.getElementById('selectedLat').textContent);
+            const lng = parseFloat(document.getElementById('selectedLng').textContent);
+            
+            // Check if we have a valid location
+            if (locationName === 'No location selected' || isNaN(lat) || isNaN(lng)) {
+                showNotification('Please select a location first', 'warning');
+                return;
+            }
+            
+            // Create location object
+            const location = {
+                name: locationName,
+                lat: lat,
+                lng: lng,
+                saved: new Date().toISOString()
+            };
+            
+            // Check if this location already exists
+            const exists = savedLocations.some(loc => 
+                loc.lat.toFixed(4) === lat.toFixed(4) && 
+                loc.lng.toFixed(4) === lng.toFixed(4)
+            );
+            
+            if (!exists) {
+                // Add to saved locations
+                savedLocations.push(location);
+                
+                // Save to localStorage
+                localStorage.setItem('nasaWeatherSavedLocations', JSON.stringify(savedLocations));
+                
+                // Update the UI
+                updateSavedLocationsList();
+                
+                // Show notification
+                showNotification(`Location "${locationName}" saved successfully!`, 'success');
+            } else {
+                showNotification('This location is already saved', 'info');
+            }
+        }
+        
+        // Function to load saved locations from localStorage
+        function loadSavedLocations() {
+            const saved = localStorage.getItem('nasaWeatherSavedLocations');
+            if (saved) {
+                try {
+                    savedLocations = JSON.parse(saved);
+                    updateSavedLocationsList();
+                } catch (e) {
+                    console.error('Error loading saved locations:', e);
+                    savedLocations = [];
+                }
+            }
+        }
+        
+        // Function to update the saved locations dropdown
+        function updateSavedLocationsList() {
+            const list = document.getElementById('savedLocationsList');
+            list.innerHTML = '';
+            
+            if (savedLocations.length === 0) {
+                const item = document.createElement('li');
+                item.innerHTML = '<span class="dropdown-item text-muted">No saved locations</span>';
+                list.appendChild(item);
+            } else {
+                // Sort locations by name
+                savedLocations.sort((a, b) => a.name.localeCompare(b.name));
+                
+                savedLocations.forEach((location, index) => {
+                    const item = document.createElement('li');
+                    const link = document.createElement('a');
+                    link.className = 'dropdown-item';
+                    link.href = '#';
+                    link.innerHTML = `
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>${location.name}</div>
+                            <button class="btn btn-sm btn-link text-danger p-0 ms-2 delete-location" 
+                                    data-index="${index}" 
+                                    title="Remove from saved locations">
+                                <i class="bi bi-x-circle"></i>
+                            </button>
+                        </div>
+                    `;
+                    
+                    // Add event listener to select this location
+                    link.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        selectSavedLocation(index);
+                    });
+                    
+                    item.appendChild(link);
+                    list.appendChild(item);
+                });
+                
+                // Add event listeners to delete buttons
+                document.querySelectorAll('.delete-location').forEach(btn => {
+                    btn.addEventListener('click', function(e) {
+                        e.stopPropagation(); // Prevent triggering the parent link
+                        const index = parseInt(this.getAttribute('data-index'));
+                        deleteSavedLocation(index);
+                    });
+                });
+            }
+        }
+        
+        // Function to select a saved location
+        function selectSavedLocation(index) {
+            const location = savedLocations[index];
+            if (location) {
+                // Update current location
+                currentLocation = {
+                    lat: location.lat,
+                    lng: location.lng
+                };
+                
+                // Update map view
+                map.setView([currentLocation.lat, currentLocation.lng], 10);
+                
+                // Update marker
+                if (marker) {
+                    map.removeLayer(marker);
+                }
+                marker = L.marker([currentLocation.lat, currentLocation.lng]).addTo(map);
+                
+                // Update display
+                updateLocationDisplay(location.name);
+                
+                // Show popup
+                marker.bindPopup(`<b>${location.name}</b>`).openPopup();
+            }
+        }
+        
+        // Function to delete a saved location
+        function deleteSavedLocation(index) {
+            const location = savedLocations[index];
+            if (location && confirm(`Remove "${location.name}" from your saved locations?`)) {
+                savedLocations.splice(index, 1);
+                
+                // Save updated list to localStorage
+                localStorage.setItem('nasaWeatherSavedLocations', JSON.stringify(savedLocations));
+                
+                // Update the UI
+                updateSavedLocationsList();
+                
+                // Show notification
+                showNotification(`Location "${location.name}" removed from saved locations`, 'info');
+            }
+        }
+        
+        // Helper function to show notifications
+        function showNotification(message, type = 'info') {
+            const locationCard = document.querySelector('.location-badge').closest('.col-md-5');
+            const notification = document.createElement('div');
+            notification.className = `alert alert-${type} alert-dismissible fade show mt-2`;
+            notification.setAttribute('role', 'alert');
+            notification.style.fontSize = '0.9rem';
+            
+            // Icon based on notification type
+            let icon = 'info-circle';
+            if (type === 'success') icon = 'check-circle';
+            if (type === 'warning') icon = 'exclamation-triangle';
+            if (type === 'danger') icon = 'x-circle';
+            
+            notification.innerHTML = `
+                <i class="bi bi-${icon} me-1"></i> ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            
+            locationCard.appendChild(notification);
+            
+            // Auto dismiss after 4 seconds
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 500);
+            }, 4000);
+        }
+        
+        function addSatelliteTab() {
+            // Create a new tab for satellite imagery settings in the controls panel
+            const controlsCard = document.querySelector('.card-header:contains("Location & Date Selection")');
+            if (controlsCard) {
+                const parentCard = controlsCard.closest('.card');
+                
+                if (parentCard) {
+                    const satelliteTab = document.createElement('div');
+                    satelliteTab.className = 'mt-3';
+                    satelliteTab.innerHTML = `
+                        <div class="card">
+                            <div class="card-header">
+                                <h5>🛰️ Satellite Imagery</h5>
+                            </div>
+                            <div class="card-body">
+                                <p class="text-muted">Use the map layer control (top right) to toggle different satellite imagery layers:</p>
+                                <ul class="mb-3">
+                                    <li><strong>Base Layers:</strong> True color satellite imagery</li>
+                                    <li><strong>Weather Overlays:</strong> Clouds, precipitation, temperature</li>
+                                    <li><strong>Environment:</strong> Vegetation, snow cover, air quality</li>
+                                </ul>
+                                <p class="text-muted">Select a different date using the date control on the map.</p>
+                            </div>
+                        </div>
+                    `;
+                    
+                    parentCard.parentNode.insertBefore(satelliteTab, parentCard.nextSibling);
+                }
+            }
+        }
+
+        function setDefaultDate() {
+            // Set default date to 3 months from now
+            const future = new Date();
+            future.setMonth(future.getMonth() + 3);
+            document.getElementById('targetDate').value = future.toISOString().split('T')[0];
+        }
+
+        function updateLocationDisplay(locationName = '') {
+            document.getElementById('selectedLat').textContent = currentLocation.lat.toFixed(4);
+            document.getElementById('selectedLng').textContent = currentLocation.lng.toFixed(4);
+            
+            // Update location name if provided
+            if (locationName) {
+                document.getElementById('selectedLocationName').textContent = locationName;
+            } else {
+                // Otherwise just display coordinates as the name
+                document.getElementById('selectedLocationName').textContent = `Selected Location`;
+            }
+            
+            // Add a highlight effect to show that the location has been updated
+            const badge = document.querySelector('.location-badge');
+            badge.classList.add('bg-light', 'border-primary');
+            setTimeout(() => {
+                badge.classList.remove('bg-light', 'border-primary');
+            }, 2000);
+        }
+
+        function getCurrentLocation() {
+            if (navigator.geolocation) {
+                // Update button to show loading
+                const locationBtn = document.getElementById('useCurrentLocation');
+                const originalBtnHtml = locationBtn.innerHTML;
+                locationBtn.disabled = true;
+                locationBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Locating...';
+                
+                navigator.geolocation.getCurrentPosition(
+                    // Success callback
+                    function(position) {
+                        currentLocation = {
+                            lat: position.coords.latitude,
+                            lng: position.coords.longitude
+                        };
+                        
+                        // Update map view
+                        map.setView([currentLocation.lat, currentLocation.lng], 12);
+                        
+                        // Update marker
+                        if (marker) {
+                            map.removeLayer(marker);
+                        }
+                        marker = L.marker([currentLocation.lat, currentLocation.lng]).addTo(map);
+                        
+                        // Try to reverse geocode the location to get a name
+                        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${currentLocation.lat}&lon=${currentLocation.lng}&zoom=10`)
+                            .then(response => response.json())
+                            .then(data => {
+                                let locationName = 'Your Location';
+                                
+                                if (data && data.display_name) {
+                                    const parts = data.display_name.split(',');
+                                    // Try to get a reasonable name (city + country)
+                                    if (parts.length >= 3) {
+                                        locationName = parts[1].trim() + ', ' + parts[parts.length - 1].trim();
+                                    } else {
+                                        locationName = data.display_name;
+                                    }
+                                    
+                                    // Show in popup
+                                    marker.bindPopup(`<b>${data.display_name}</b>`).openPopup();
+                                }
+                                
+                                // Update display with the name
+                                updateLocationDisplay(locationName);
+                            })
+                            .catch(err => {
+                                // If reverse geocoding fails, just show coordinates
+                                updateLocationDisplay('Your Current Location');
+                                console.error("Error reverse geocoding:", err);
+                            })
+                            .finally(() => {
+                                // Reset the button
+                                locationBtn.disabled = false;
+                                locationBtn.innerHTML = originalBtnHtml;
+                            });
+                    },
+                    // Error callback
+                    function(error) {
+                        // Reset the button
+                        locationBtn.disabled = false;
+                        locationBtn.innerHTML = originalBtnHtml;
+                        
+                        let errorMsg = 'Unable to retrieve your location.';
+                        
+                        switch(error.code) {
+                            case error.PERMISSION_DENIED:
+                                errorMsg = 'Location access was denied by the user.';
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                errorMsg = 'Location information is unavailable.';
+                                break;
+                            case error.TIMEOUT:
+                                errorMsg = 'The request to get user location timed out.';
+                                break;
+                            case error.UNKNOWN_ERROR:
+                                errorMsg = 'An unknown error occurred while getting location.';
+                                break;
+                        }
+                        
+                        // Show error notification
+                        const locationCard = document.querySelector('.location-badge').closest('.col-md-5');
+                        const errorNotification = document.createElement('div');
+                        errorNotification.className = 'alert alert-warning alert-dismissible fade show mt-2';
+                        errorNotification.setAttribute('role', 'alert');
+                        errorNotification.style.fontSize = '0.9rem';
+                        errorNotification.innerHTML = `
+                            <i class="bi bi-exclamation-triangle me-1"></i> ${errorMsg}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        `;
+                        
+                        locationCard.appendChild(errorNotification);
+                        
+                        // Auto dismiss after 5 seconds
+                        setTimeout(() => {
+                            errorNotification.classList.remove('show');
+                            setTimeout(() => {
+                                if (errorNotification.parentNode) {
+                                    errorNotification.parentNode.removeChild(errorNotification);
+                                }
+                            }, 500);
+                        }, 5000);
+                    },
+                    // Options
+                    { 
+                        enableHighAccuracy: true, 
+                        timeout: 10000, 
+                        maximumAge: 0 
+                    }
+                );
+            } else {
+                alert('Geolocation is not supported by this browser.');
+            }
+        }
+
+        function searchLocation() {
+            // Implement Nominatim OpenStreetMap search for geocoding
+            const query = document.getElementById('locationSearch').value;
+            if (!query.trim()) {
+                showNotification('Please enter a location to search', 'warning');
+                return;
+            }
+            
+            // Show loading indicator
+            const searchInput = document.getElementById('locationSearch');
+            const originalValue = searchInput.value;
+            searchInput.disabled = true;
+            searchInput.value = "Searching...";
+            
+            // Show spinner in button
+            const searchBtn = document.getElementById('searchLocationBtn');
+            const originalBtnHtml = searchBtn.innerHTML;
+            searchBtn.disabled = true;
+            searchBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Searching...';
+            
+            // Check if we have multiple results - if so, show a modal to select
+            const searchParams = new URLSearchParams({
+                format: 'json',
+                q: query,
+                limit: 5,
+                addressdetails: 1
+            });
+            
+            // Use OpenStreetMap Nominatim API for geocoding
+            fetch(`https://nominatim.openstreetmap.org/search?${searchParams.toString()}`)
+                .then(response => response.json())
+                .then(data => {
+                    // Reset input and button
+                    searchInput.disabled = false;
+                    searchInput.value = originalValue;
+                    searchBtn.disabled = false;
+                    searchBtn.innerHTML = originalBtnHtml;
+                    
+                    if (data && data.length > 0) {
+                        if (data.length === 1) {
+                            // Just one result, use it directly
+                            processGeocodingResult(data[0]);
+                        } else {
+                            // Multiple results, show selection modal
+                            showLocationSelectionModal(data);
+                        }
+                    } else {
+                        showNotification('Location not found. Please try a different search.', 'warning');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error searching location:', error);
+                    searchInput.disabled = false;
+                    searchInput.value = originalValue;
+                    searchBtn.disabled = false;
+                    searchBtn.innerHTML = originalBtnHtml;
+                    
+                    showNotification('Error searching for location. Please try again.', 'danger');
+                });
+        }
+        
+        // Process a selected geocoding result
+        function processGeocodingResult(result) {
+            // Update current location
+            currentLocation = {
+                lat: parseFloat(result.lat),
+                lng: parseFloat(result.lon)
+            };
+            
+            // Update map view
+            map.setView([currentLocation.lat, currentLocation.lng], 10);
+            
+            // Update marker
+            if (marker) {
+                map.removeLayer(marker);
+            }
+            marker = L.marker([currentLocation.lat, currentLocation.lng]).addTo(map);
+            
+            // Create a formatted display name
+            let displayName = '';
+            
+            // Try to use address components for better formatting if available
+            if (result.address) {
+                const address = result.address;
+                const components = [];
+                
+                // Prioritize certain components
+                if (address.city) components.push(address.city);
+                else if (address.town) components.push(address.town);
+                else if (address.village) components.push(address.village);
+                else if (address.hamlet) components.push(address.hamlet);
+                
+                // Add county/state if available and different from city
+                if (address.county && !components.includes(address.county)) 
+                    components.push(address.county);
+                else if (address.state && !components.includes(address.state)) 
+                    components.push(address.state);
+                
+                // Always add country as last component
+                if (address.country && !components.includes(address.country)) 
+                    components.push(address.country);
+                
+                displayName = components.join(', ');
+            }
+            
+            // Fallback to splitting display_name if address components not available
+            if (!displayName) {
+                const locationParts = result.display_name.split(',');
+                displayName = locationParts[0];
+                if (locationParts.length > 1) {
+                    displayName += ', ' + locationParts[locationParts.length - 1].trim();
+                }
+            }
+            
+            // Show location name as popup
+            marker.bindPopup(`<b>${result.display_name}</b>`).openPopup();
+            
+            // Update display with the name
+            updateLocationDisplay(displayName);
+            
+            // Show success notification
+            showNotification(`Location found: <strong>${displayName}</strong>`, 'success');
+            
+            // Clear the search input
+            document.getElementById('locationSearch').value = '';
+        }
+        
+        // Show a modal with multiple location options
+        function showLocationSelectionModal(results) {
+            // Create modal element if it doesn't exist
+            let modal = document.getElementById('locationSelectionModal');
+            
+            if (!modal) {
+                const modalHTML = `
+                    <div class="modal fade" id="locationSelectionModal" tabindex="-1" aria-labelledby="locationSelectionModalLabel" aria-hidden="true">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="locationSelectionModalLabel">
+                                        <i class="bi bi-geo-alt me-2"></i>Select Location
+                                    </h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <p>Multiple locations found. Please select one:</p>
+                                    <div class="list-group" id="locationOptions">
+                                        <!-- Location options will be inserted here -->
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                const modalContainer = document.createElement('div');
+                modalContainer.innerHTML = modalHTML;
+                document.body.appendChild(modalContainer.firstChild);
+                modal = document.getElementById('locationSelectionModal');
+            }
+            
+            // Populate location options
+            const locationOptions = document.getElementById('locationOptions');
+            locationOptions.innerHTML = '';
+            
+            results.forEach((result, index) => {
+                // Format the location name
+                let locationName = '';
+                let details = '';
+                
+                // Try to use address components for better formatting
+                if (result.address) {
+                    const address = result.address;
+                    const mainComponents = [];
+                    const detailComponents = [];
+                    
+                    // Main components
+                    if (address.city) mainComponents.push(address.city);
+                    else if (address.town) mainComponents.push(address.town);
+                    else if (address.village) mainComponents.push(address.village);
+                    else if (address.hamlet) mainComponents.push(address.hamlet);
+                    
+                    // If we have state/country, add those
+                    if (address.state) mainComponents.push(address.state);
+                    if (address.country) mainComponents.push(address.country);
+                    
+                    // Detail components
+                    if (address.road) detailComponents.push(address.road);
+                    if (address.suburb) detailComponents.push(address.suburb);
+                    if (address.county && !mainComponents.includes(address.county)) 
+                        detailComponents.push(address.county);
+                    
+                    locationName = mainComponents.join(', ');
+                    details = detailComponents.join(', ');
+                }
+                
+                // Fallback to display_name if address parsing failed
+                if (!locationName) {
+                    const parts = result.display_name.split(',');
+                    locationName = parts.slice(0, Math.min(2, parts.length)).join(',');
+                    details = parts.slice(Math.min(2, parts.length)).join(',');
+                }
+                
+                // Type of location (city, building, etc)
+                const locationType = result.type.charAt(0).toUpperCase() + result.type.slice(1);
+                
+                const item = document.createElement('a');
+                item.className = 'list-group-item list-group-item-action';
+                item.href = '#';
+                item.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">${locationName}</h6>
+                            <p class="mb-1 text-muted small">${details}</p>
+                            <small class="text-muted">${locationType}</small>
+                        </div>
+                        <span class="badge bg-light text-dark rounded-pill">
+                            ${result.lat.substring(0, 6)}, ${result.lon.substring(0, 6)}
+                        </span>
+                    </div>
+                `;
+                
+                item.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    // Hide modal
+                    const modalInstance = bootstrap.Modal.getInstance(modal);
+                    modalInstance.hide();
+                    // Process selected location
+                    processGeocodingResult(result);
+                });
+                
+                locationOptions.appendChild(item);
+            });
+            
+            // Show the modal
+            const modalInstance = new bootstrap.Modal(modal);
+            modalInstance.show();
+        }
+
+        async function analyzeWeatherProbability() {
+            const targetDate = document.getElementById('targetDate').value;
+            const yearsBack = parseInt(document.getElementById('yearsBack').value);
+            let useMlPrediction = false; // ML prediction is disabled by default since toggle was removed
+            const mlModelType = document.getElementById('mlModelType').value;
+            
+            if (!targetDate) {
+                showNotification('Please select a target date', 'warning');
+                return;
+            }
+
+            // Get selected parameters - only from the weather parameter checkboxes
+            const parameters = [];
+            document.querySelectorAll('input[type="checkbox"][id^="param"]:checked').forEach(checkbox => {
+                parameters.push(checkbox.value);
+            });
+
+            if (parameters.length === 0) {
+                showNotification('Please select at least one weather parameter', 'warning');
+                return;
+            }
+
+            // Show loading
+            showLoading(true);
+            
+            try {
+                // Convert date to MMDD format
+                const date = new Date(targetDate);
+                const monthDay = String(date.getMonth() + 1).padStart(2, '0') + 
+                               String(date.getDate()).padStart(2, '0');
+
+                // Define thresholds for analysis
+                const thresholds = {
+                    'T2M': { 'very_hot': 35, 'hot': 30, 'cold': 10, 'very_cold': 0 },
+                    'PRECTOTCORR': { 'wet': 10, 'very_wet': 25, 'extreme_wet': 50 },
+                    'WS2M': { 'windy': 10, 'very_windy': 15, 'extreme_windy': 20 },
+                    'RH2M': { 'humid': 70, 'very_humid': 80, 'dry': 30, 'very_dry': 20 }
+                };
+
+                let analysisResults;
+                
+                // Try ML prediction if selected
+                if (useMlPrediction) {
+                    try {
+                        console.log("Attempting ML prediction");
+                        
+                        // TEMPORARY: Skip the model checking and training process
+                        // This avoids the 500 error we're seeing
+                        
+                        // Get prediction using ML
+                        const community = document.getElementById('dataCommunity').value;
+                        const mlRequestData = {
+                            latitude: currentLocation.lat,
+                            longitude: currentLocation.lng,
+                            target_date: monthDay,
+                            parameters: parameters,
+                            model_type: mlModelType,
+                            thresholds: thresholds,
+                            community: community
+                        };
+                        
+                        console.log("Sending ML prediction request:", mlRequestData);
+                        
+                        const mlResponse = await fetch(`${API_BASE}/weather/ml-prediction`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(mlRequestData)
+                        });
+                        
+                        if (!mlResponse.ok) {
+                            console.error(`ML prediction failed! Status: ${mlResponse.status}`);
+                            showNotification('ML prediction unavailable, using statistical analysis instead', 'warning');
+                            useMlPrediction = false;
+                        } else {
+                            console.log("ML prediction successful");
+                            analysisResults = await mlResponse.json();
+                            // Add ML flag
+                            analysisResults.ml_enhanced = true;
+                        }
+                    } catch (mlError) {
+                        console.error('Error with ML prediction:', mlError);
+                        showNotification('Error with ML prediction. Using standard analysis instead.', 'warning');
+                        useMlPrediction = false;
+                    }
+                }
+                
+                // If ML is not selected or ML failed, use traditional statistical analysis
+                if (!useMlPrediction) {
+                    try {
+                        console.log("Using standard statistical analysis");
+                        const community = document.getElementById('dataCommunity').value;
+                        const requestData = {
+                            latitude: currentLocation.lat,
+                            longitude: currentLocation.lng,
+                            target_date: monthDay,
+                            years_back: yearsBack,
+                            parameters: parameters,
+                            thresholds: thresholds,
+                            use_ml: false,
+                            community: community
+                        };
+
+                        const response = await fetch(`${API_BASE}/weather/probability`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(requestData)
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+
+                        analysisResults = await response.json();
+                    } catch (statsError) {
+                        console.error("Error with statistical analysis:", statsError);
+                        showNotification('Error analyzing weather data: ' + statsError.message, 'danger');
+                        throw statsError;  // Re-throw to be caught by outer try-catch
+                    }
+                }
+                
+                if (analysisResults) {
+                    try {
+                        // Wrap display results in try/catch to handle any chart rendering errors
+                        displayResults(analysisResults);
+                    } catch (displayError) {
+                        console.error('Error displaying results:', displayError);
+                        // Destroy any potentially corrupted charts
+                        if (trendChartInstance) {
+                            try {
+                                trendChartInstance.destroy();
+                            } catch (e) {
+                                console.error('Failed to destroy trend chart:', e);
+                            }
+                            trendChartInstance = null;
+                        }
+                        if (distributionChartInstance) {
+                            try {
+                                distributionChartInstance.destroy();
+                            } catch (e) {
+                                console.error('Failed to destroy distribution chart:', e);
+                            }
+                            distributionChartInstance = null;
+                        }
+                        
+                        // Provide more detailed error information
+                        let errorMessage = 'Error rendering charts: ' + displayError.message;
+                        
+                        // Check for specific DOM elements that might be causing issues
+                        if (!document.getElementById('trendChart')) {
+                            errorMessage += ' (trendChart element not found)';
+                        }
+                        if (!document.getElementById('distributionChart')) {
+                            errorMessage += ' (distributionChart element not found)';
+                        }
+                        if (!document.getElementById('probabilityCards')) {
+                            errorMessage += ' (probabilityCards element not found)';
+                        }
+                        
+                        throw new Error(errorMessage);
+                    }
+                } else {
+                    console.error("No analysis results available");
+                    showNotification('No results were returned from the analysis', 'danger');
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification('Error analyzing weather data: ' + error.message, 'danger');
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        // Function to check if models need training
+        async function shouldTrainModels(parameters, modelType) {
+            try {
+                // TEMPORARY: Always return false to skip training
+                // This avoids the 500 error we're seeing
+                console.log("Skipping model training to avoid errors");
+                return false;
+                
+                /* Original implementation - commented out until backend issues are fixed
+                // Make a request to check if models exist
+                const checkUrl = `${API_BASE}/weather/ml-models?parameters=${parameters.join(',')}&model_type=${modelType}`;
+                console.log("Checking ML models at:", checkUrl);
+                
+                const response = await fetch(checkUrl);
+                if (!response.ok) {
+                    console.error("Model check failed with status:", response.status);
+                    try {
+                        const errorText = await response.text();
+                        console.error("Error details:", errorText);
+                    } catch (e) {}
+                    return true; // Need to train if endpoint fails
+                }
+                
+                const result = await response.json();
+                console.log("Model check result:", result);
+                
+                if (!result.all_models_exist) {
+                    console.log("Some models missing. Need to train:", result.model_status);
+                }
+                
+                return !result.all_models_exist; // Return true (need training) if not all models exist
+                */
+            } catch (error) {
+                console.error('Error checking model status:', error);
+                return false; // TEMPORARY: Don't train if check fails to avoid errors
+            }
+        }
+
+        function displayResults(results) {
+            try {
+                // Clear previous results to ensure no conflicts
+                clearPreviousResults();
+                
+                // Check if results section exists
+                const resultsSection = document.getElementById('resultsSection');
+                if (!resultsSection) {
+                    console.error('Results section not found in DOM');
+                    throw new Error('Results section not found in DOM');
+                }
+                
+                // Show results section
+                resultsSection.style.display = 'block';
+                
+                // Enable export button
+                const exportBtn = document.getElementById('exportBtn');
+                if (exportBtn) exportBtn.disabled = false;
+                
+                // Show ML enhanced indicators if applicable
+                const mlInfoSection = document.getElementById('mlInfoSection');
+                const mlBadge = document.getElementById('mlBadge');
+                
+                if (results.ml_enhanced) {
+                    if (mlInfoSection) mlInfoSection.style.display = 'block';
+                    if (mlBadge) mlBadge.style.display = 'inline-block';
+                } else {
+                    if (mlInfoSection) mlInfoSection.style.display = 'none';
+                    if (mlBadge) mlBadge.style.display = 'none';
+                }
+                
+                // Display probability cards
+                displayProbabilityCards(results.results);
+                
+                // Display charts - with a slight delay to ensure DOM elements are ready
+                displayCharts(results.results);
+                
+                // Display comfort analysis if available
+                if (results.results.comfort_index) {
+                    displayComfortAnalysis(results.results.comfort_index);
+                }
+                
+                // Scroll to results
+                resultsSection.scrollIntoView({ behavior: 'smooth' });
+            } catch (error) {
+                console.error('Error in displayResults:', error);
+                showNotification('Error displaying results: ' + error.message, 'danger');
+                throw error; // Re-throw to be caught by the caller
+            }
+        }
+        
+        // Function to clear previous results to avoid conflicts
+        function clearPreviousResults() {
+            try {
+                // Clear probability cards
+                const probabilityCardsElem = document.getElementById('probabilityCards');
+                if (probabilityCardsElem) {
+                    probabilityCardsElem.innerHTML = '';
+                }
+                
+                // Clear comfort analysis
+                const comfortAnalysisElem = document.getElementById('comfortAnalysis');
+                if (comfortAnalysisElem) {
+                    comfortAnalysisElem.innerHTML = '';
+                }
+                
+                // Destroy any existing charts to prevent memory leaks
+                if (trendChartInstance) {
+                    try {
+                        trendChartInstance.destroy();
+                    } catch (e) {
+                        console.error('Error destroying trend chart:', e);
+                    }
+                    trendChartInstance = null;
+                }
+                
+                if (distributionChartInstance) {
+                    try {
+                        distributionChartInstance.destroy();
+                    } catch (e) {
+                        console.error('Error destroying distribution chart:', e);
+                    }
+                    distributionChartInstance = null;
+                }
+            } catch (error) {
+                console.error('Error clearing previous results:', error);
+            }
+            
+            // Charts will also be destroyed in their respective create functions
+        }
+
+        function displayProbabilityCards(results) {
+            const container = document.getElementById('probabilityCards');
+            
+            if (!container) {
+                console.error('Error: probabilityCards container not found in DOM');
+                return;
+            }
+            
+            // Clear previous content
+            container.innerHTML = '';
+
+            // Check if results are valid
+            if (!results || typeof results !== 'object') {
+                console.error('Error: Invalid results format', results);
+                return;
+            }
+
+            // Create cards for each parameter
+            Object.keys(results).forEach(param => {
+                if (param === 'comfort_index') return;
+                
+                const data = results[param];
+                const card = createProbabilityCard(param, data);
+                container.appendChild(card);
+            });
+        }
+
+        function createProbabilityCard(parameter, data) {
+            const col = document.createElement('div');
+            col.className = 'col-md-6 col-lg-4';
+
+            const paramNames = {
+                'T2M': '🌡️ Temperature',
+                'PRECTOTCORR': '🌧️ Precipitation', 
+                'WS2M': '💨 Wind Speed',
+                'RH2M': '💧 Humidity'
+            };
+
+            let probabilitiesHtml = '';
+            Object.entries(data.probabilities || {}).forEach(([condition, prob]) => {
+                const cssClass = prob > 50 ? 'probability-high' : 
+                               prob > 20 ? 'probability-medium' : 'probability-low';
+                
+                probabilitiesHtml += `
+                    <div class="d-flex justify-content-between">
+                        <span>${condition.replace('_', ' ')}</span>
+                        <span class="${cssClass}">${prob}%</span>
+                    </div>
+                `;
+            });
+            
+            // Add ML prediction if available
+            let mlPredictionHtml = '';
+            if (data.ml_prediction) {
+                const predValue = data.ml_prediction.value.toFixed(1);
+                const uncertainty = data.ml_prediction.uncertainty.toFixed(1);
+                
+                mlPredictionHtml = `
+                    <div class="mt-3 pt-2 border-top">
+                        <h6 class="d-flex align-items-center">
+                            <i class="bi bi-robot me-1"></i> ML Prediction
+                        </h6>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>Predicted value:</span>
+                            <span class="fw-bold">${predValue} ${data.unit.replace(/.*\(|\)/g, '')}</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Uncertainty:</span>
+                            <span class="text-muted">±${uncertainty}</span>
+                        </div>
+                        <div class="mt-1">
+                            <span class="badge bg-info text-dark">
+                                ${data.ml_prediction.model_type.replace('_', ' ')}
+                            </span>
+                        </div>
+                    </div>
+                `;
+            }
+
+            col.innerHTML = `
+                <div class="card weather-card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">${paramNames[parameter] || parameter}</h6>
+                        ${data.ml_prediction ? '<span class="badge bg-primary">ML Enhanced</span>' : ''}
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <small class="text-muted">Historical Average</small>
+                            <h5>${data.statistics?.mean?.toFixed(1) || 'N/A'} ${data.unit}</h5>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <small class="text-muted">Probability of Conditions</small>
+                            ${probabilitiesHtml}
+                        </div>
+                        
+                        <div class="text-muted small">
+                            Based on ${data.statistics?.count || 0} data points
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            return col;
+        }
+
+        // Store chart instances so they can be destroyed before creating new ones
+        let trendChartInstance = null;
+        let distributionChartInstance = null;
+        
+        function displayCharts(results) {
+            try {
+                // Make sure the results section is visible first
+                const resultsSection = document.getElementById('resultsSection');
+                if (!resultsSection) {
+                    console.error('Results section not found in DOM');
+                    return;
+                }
+                
+                resultsSection.style.display = 'block';
+                
+                // Verify chart elements exist before timeout
+                const trendChartElement = document.getElementById('trendChart');
+                const distributionChartElement = document.getElementById('distributionChart');
+                
+                if (!trendChartElement) {
+                    console.error('Error: trendChart canvas element not found in the DOM');
+                }
+                
+                if (!distributionChartElement) {
+                    console.error('Error: distributionChart canvas element not found in the DOM');
+                }
+                
+                // Continue only if at least one chart element exists
+                if (trendChartElement || distributionChartElement) {
+                    // Small timeout to ensure DOM is updated before creating charts
+                    setTimeout(() => {
+                        try {
+                            // Historical trends chart
+                            if (trendChartElement) {
+                                createTrendChart(results);
+                            }
+                            
+                            // Probability distribution chart
+                            if (distributionChartElement) {
+                                createDistributionChart(results);
+                            }
+                        } catch (error) {
+                            console.error('Error creating charts in timeout:', error);
+                        }
+                    }, 100);
+                } else {
+                    console.error('No chart elements found in the DOM');
+                }
+            } catch (error) {
+                console.error('Error in displayCharts:', error);
+            }
+        }
+
+        function createTrendChart(results) {
+            // Check if trend chart element exists
+            const trendChartElement = document.getElementById('trendChart');
+            if (!trendChartElement) {
+                console.error('Error: trendChart canvas element not found in the DOM');
+                return;
+            }
+            
+            let ctx;
+            
+            // Try-catch block to handle potential Canvas errors
+            try {
+                ctx = trendChartElement.getContext('2d');
+                
+                // Destroy existing chart if it exists
+                if (trendChartInstance) {
+                    trendChartInstance.destroy();
+                    trendChartInstance = null;
+                }
+            } catch (error) {
+                console.error('Error getting 2d context from trendChart:', error);
+                return;
+            }
+            
+            // Extract data for the first parameter as example
+            const firstParam = Object.keys(results).find(key => key !== 'comfort_index');
+            if (!firstParam) {
+                console.error('No valid parameters found in results');
+                return;
+            }
+            
+            const data = results[firstParam];
+            if (!data || !data.historical_values) {
+                console.error('Invalid data format for parameter:', firstParam);
+                return;
+            }
+            
+            // Create new chart and store the instance
+            try {
+                trendChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.historical_values?.map((_, i) => `Point ${i+1}`) || [],
+                    datasets: [{
+                        label: firstParam,
+                        data: data.historical_values || [],
+                        borderColor: 'var(--spaceapps-electric-blue)',
+                        backgroundColor: 'rgba(0, 66, 166, 0.1)',
+                        tension: 0.1,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: false
+                        }
+                    }
+                }
+            });
+            } catch (error) {
+                console.error('Error creating trend chart:', error);
+                if (trendChartInstance) {
+                    trendChartInstance.destroy();
+                    trendChartInstance = null;
+                }
+            }
+        }
+
+        function createDistributionChart(results) {
+            // Check if distribution chart element exists
+            const distributionChartElement = document.getElementById('distributionChart');
+            if (!distributionChartElement) {
+                console.error('Error: distributionChart canvas element not found in the DOM');
+                return;
+            }
+            
+            let ctx;
+            
+            // Try-catch block to handle potential Canvas errors
+            try {
+                ctx = distributionChartElement.getContext('2d');
+                
+                // Destroy existing chart if it exists
+                if (distributionChartInstance) {
+                    distributionChartInstance.destroy();
+                    distributionChartInstance = null;
+                }
+            } catch (error) {
+                console.error('Error getting 2d context from distributionChart:', error);
+                return;
+            }
+            
+            try {
+                // Validate results
+                if (!results || typeof results !== 'object') {
+                    console.error('Invalid results format for distribution chart');
+                    return;
+                }
+                
+                // Create probability comparison chart
+                const labels = [];
+                const datasets = [];
+                
+                Object.entries(results).forEach(([param, data]) => {
+                    if (param === 'comfort_index') return;
+                    
+                    const probabilities = data.probabilities || {};
+                    Object.keys(probabilities).forEach(condition => {
+                        if (!labels.includes(condition)) {
+                            labels.push(condition);
+                        }
+                    });
+                });
+                
+                // Check if we have any labels to display
+                if (labels.length === 0) {
+                    console.error('No condition labels found for distribution chart');
+                    return;
+                }
+
+                // Use NASA-themed color palette (from Chart.js configuration)
+                const colors = window.chartColors || ['var(--spaceapps-electric-blue)', 'var(--spaceapps-blue-yonder)', 'var(--spaceapps-neon-blue)', 'var(--spaceapps-neon-yellow)', 'var(--spaceapps-rocket-red)'];
+                let colorIndex = 0;
+
+                Object.entries(results).forEach(([param, data]) => {
+                    if (param === 'comfort_index') return;
+                    
+                    const probData = labels.map(label => data.probabilities?.[label] || 0);
+                    
+                    datasets.push({
+                        label: param,
+                        data: probData,
+                        backgroundColor: colors[colorIndex % colors.length],
+                        borderWidth: 1
+                    });
+                    colorIndex++;
+                });
+                
+                // Ensure we have datasets
+                if (datasets.length === 0) {
+                    console.error('No datasets created for distribution chart');
+                    return;
+                }
+
+                // Create new chart and store the instance
+                distributionChartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: datasets
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Error creating distribution chart:', error);
+                if (distributionChartInstance) {
+                    distributionChartInstance.destroy();
+                    distributionChartInstance = null;
+                }
+            }
+        }
+
+        function displayComfortAnalysis(comfortData) {
+            const container = document.getElementById('comfortAnalysis');
+            
+            const probabilities = comfortData.comfort_probabilities || {};
+            
+            // Determine the most likely comfort level
+            let maxProb = 0;
+            let likelyComfort = '';
+            
+            Object.entries(probabilities).forEach(([condition, prob]) => {
+                if (prob > maxProb) {
+                    maxProb = prob;
+                    likelyComfort = condition;
+                }
+            });
+            
+            // Generate recommendation text based on most likely comfort
+            let recommendationText = '';
+            let recommendationClass = '';
+            
+            switch(likelyComfort) {
+                case 'very_comfortable':
+                    recommendationText = 'Perfect conditions for outdoor activities! This is an ideal time for your planned activities.';
+                    recommendationClass = 'text-success';
+                    break;
+                case 'comfortable':
+                    recommendationText = 'Good conditions overall. You may want to bring a light jacket or sun protection depending on the season.';
+                    recommendationClass = 'text-info';
+                    break;
+                case 'uncomfortable':
+                    recommendationText = 'Be prepared for potentially challenging weather. Consider rescheduling or bringing appropriate gear.';
+                    recommendationClass = 'text-warning';
+                    break;
+                case 'very_uncomfortable':
+                    recommendationText = 'Weather conditions likely to be difficult. We recommend choosing an alternative date if possible.';
+                    recommendationClass = 'text-danger';
+                    break;
+                default:
+                    recommendationText = 'Insufficient data to make a comfort recommendation.';
+                    recommendationClass = 'text-secondary';
+            }
+            
+            container.innerHTML = `
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <div class="text-center p-3 bg-success bg-opacity-10 rounded">
+                            <div class="display-6 text-success">${probabilities.very_comfortable || 0}%</div>
+                            <div class="d-flex align-items-center justify-content-center">
+                                <i class="bi bi-emoji-laughing me-1"></i>
+                                <span>Very Comfortable</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center p-3 bg-info bg-opacity-10 rounded">
+                            <div class="display-6 text-info">${probabilities.comfortable || 0}%</div>
+                            <div class="d-flex align-items-center justify-content-center">
+                                <i class="bi bi-emoji-smile me-1"></i>
+                                <span>Comfortable</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center p-3 bg-warning bg-opacity-10 rounded">
+                            <div class="display-6 text-warning">${probabilities.uncomfortable || 0}%</div>
+                            <div class="d-flex align-items-center justify-content-center">
+                                <i class="bi bi-emoji-frown me-1"></i>
+                                <span>Uncomfortable</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center p-3 bg-danger bg-opacity-10 rounded">
+                            <div class="display-6 text-danger">${probabilities.very_uncomfortable || 0}%</div>
+                            <div class="d-flex align-items-center justify-content-center">
+                                <i class="bi bi-emoji-angry me-1"></i>
+                                <span>Very Uncomfortable</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-4 p-3 border-start border-4 ${recommendationClass} bg-light">
+                    <div class="d-flex">
+                        <div class="me-3">
+                            <i class="bi bi-info-circle-fill ${recommendationClass} fs-3"></i>
+                        </div>
+                        <div>
+                            <h5 class="${recommendationClass}">Recommendation</h5>
+                            <p>${recommendationText}</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-3 text-center text-muted">
+                    <small>Comfort index calculation based on temperature, humidity, wind speed and precipitation combination</small>
+                </div>
+            `;
+        }
+
+        function showLoading(show) {
+            const spinner = document.querySelector('.loading-spinner');
+            spinner.style.display = show ? 'block' : 'none';
+            
+            const analyzeBtn = document.getElementById('analyzeBtn');
+            analyzeBtn.disabled = show;
+            analyzeBtn.innerHTML = show ? 
+                '<span class="spinner-border spinner-border-sm me-2"></span>Analyzing...' :
+                '<i class="bi bi-graph-up me-1"></i> Analyze Weather Probability';
+        }
+
+        async function exportData() {
+            if (!analysisResults) {
+                alert('No data available to export');
+                return;
+            }
+
+            try {
+                const targetDate = document.getElementById('targetDate').value;
+                const date = new Date(targetDate);
+                
+                // Calculate date range for export (using same year for simplicity)
+                const startDate = date.getFullYear() + '0101';
+                const endDate = date.getFullYear() + '1231';
+                
+                // Get only weather parameter checkboxes (those that start with "param")
+                const parameters = [];
+                document.querySelectorAll('input[type="checkbox"][id^="param"]:checked').forEach(checkbox => {
+                    parameters.push(checkbox.value);
+                });
+
+                const community = document.getElementById('dataCommunity').value;
+                const exportUrl = `${API_BASE}/weather/export/csv?` + new URLSearchParams({
+                    latitude: currentLocation.lat,
+                    longitude: currentLocation.lng,
+                    start_date: startDate,
+                    end_date: endDate,
+                    parameters: parameters.join(','),
+                    community: community
+                });
+
+                // Download the file
+                window.open(exportUrl, '_blank');
+                
+            } catch (error) {
+                console.error('Export error:', error);
+                alert('Error exporting data: ' + error.message);
+            }
+        }
+        
+        // Flood Risk Assessment Functions
+        let floodRiskData = null;
+        
+        async function checkFloodRisk() {
+            if (!currentLocation) {
+                alert('Please select a location first');
+                return;
+            }
+            
+            try {
+                // Show loading state
+                document.getElementById('floodRiskPlaceholder').style.display = 'block';
+                document.getElementById('currentFloodRisk').style.display = 'none';
+                document.getElementById('floodRiskForecast').style.display = 'none';
+                document.getElementById('floodRiskPlaceholder').innerHTML = `
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-3">Analyzing flood risk data...</p>
+                `;
+                
+                // Optional: Get elevation if available
+                let elevation = null;
+                // You could add elevation input or fetch from an elevation API
+                
+                // Make request to flood risk endpoint
+                const response = await fetch(`${API_BASE}/flood/risk`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        latitude: currentLocation.lat,
+                        longitude: currentLocation.lng,
+                        forecast_days: 5,
+                        include_historical: true,
+                        elevation: elevation
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to get flood risk data: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                floodRiskData = data.flood_risk;
+                
+                // Display flood risk data
+                displayFloodRisk(floodRiskData);
+                
+            } catch (error) {
+                console.error('Flood risk error:', error);
+                document.getElementById('floodRiskPlaceholder').innerHTML = `
+                    <div class="alert alert-danger" role="alert">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        Error fetching flood risk data: ${error.message}
+                    </div>
+                    <button class="btn btn-outline-primary mt-3" onclick="checkFloodRisk()">
+                        <i class="bi bi-arrow-repeat me-1"></i> Try Again
+                    </button>
+                `;
+            }
+        }
+        
+        // Notification System
+        function showNotification(message, type = 'info', duration = 5000, title = null) {
+            const notificationContainer = document.getElementById('notificationContainer');
+            
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.className = `notification toast`;
+            notification.setAttribute('role', 'alert');
+            notification.setAttribute('aria-live', 'assertive');
+            notification.setAttribute('aria-atomic', 'true');
+            
+            // Set background color based on type
+            let bgClass, iconClass;
+            switch (type) {
+                case 'success':
+                    bgClass = 'bg-success text-white';
+                    iconClass = 'bi-check-circle-fill';
+                    break;
+                case 'warning':
+                    bgClass = 'bg-warning';
+                    iconClass = 'bi-exclamation-triangle-fill';
+                    break;
+                case 'danger':
+                    bgClass = 'bg-danger text-white';
+                    iconClass = 'bi-exclamation-circle-fill';
+                    break;
+                default:
+                    bgClass = 'bg-info text-white';
+                    iconClass = 'bi-info-circle-fill';
+            }
+            
+            // Create notification content
+            notification.innerHTML = `
+                <div class="toast-header ${bgClass}">
+                    <i class="bi ${iconClass} me-2"></i>
+                    <strong class="me-auto">${title || 'Notification'}</strong>
+                    <small>${new Date().toLocaleTimeString()}</small>
+                    <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+                <div class="toast-body">
+                    ${message}
+                </div>
+            `;
+            
+            // Add to container
+            notificationContainer.appendChild(notification);
+            
+            // Show with animation
+            setTimeout(() => {
+                notification.classList.add('show');
+            }, 10);
+            
+            // Auto-hide after duration
+            if (duration > 0) {
+                setTimeout(() => {
+                    hideNotification(notification);
+                }, duration);
+            }
+            
+            // Add close button functionality
+            const closeBtn = notification.querySelector('.btn-close');
+            closeBtn.addEventListener('click', () => {
+                hideNotification(notification);
+            });
+            
+            return notification;
+        }
+        
+        function hideNotification(notification) {
+            notification.classList.remove('show');
+            setTimeout(() => {
+                notification.remove();
+            }, 300);
+        }
+        
+        function showFloodAlert(riskLevel, location) {
+            let title, message, type;
+            
+            switch (riskLevel) {
+                case 'SEVERE':
+                    title = '🚨 SEVERE FLOOD ALERT';
+                    message = `Dangerous flooding likely at ${location}. Take immediate action to ensure safety.`;
+                    type = 'danger';
+                    break;
+                case 'HIGH':
+                    title = '⚠️ HIGH FLOOD RISK';
+                    message = `High flood risk detected at ${location}. Be prepared for possible flooding.`;
+                    type = 'warning';
+                    break;
+                case 'MODERATE':
+                    title = '⚠️ FLOOD WATCH';
+                    message = `Moderate flood risk at ${location}. Monitor conditions closely.`;
+                    type = 'warning';
+                    break;
+                default:
+                    return; // Don't show notification for low risk
+            }
+            
+            // Show notification that stays until dismissed for high/severe risks
+            const duration = riskLevel === 'SEVERE' ? 0 : 8000;
+            showNotification(message, type, duration, title);
+        }
+        
+        function displayFloodRisk(riskData) {
+            if (!riskData || !riskData.current_risk) {
+                document.getElementById('floodRiskPlaceholder').innerHTML = `
+                    <div class="alert alert-warning" role="alert">
+                        <i class="bi bi-exclamation-circle me-2"></i>
+                        No flood risk data available for this location.
+                    </div>
+                `;
+                return;
+            }
+            
+            // Show notification for high risk levels
+            const locationName = document.getElementById('selectedLocationName').textContent || 'selected location';
+            if (riskData.current_risk.level === 'HIGH' || riskData.current_risk.level === 'SEVERE') {
+                showFloodAlert(riskData.current_risk.level, locationName);
+            }
+            
+            // Hide placeholder, show risk sections
+            document.getElementById('floodRiskPlaceholder').style.display = 'none';
+            document.getElementById('currentFloodRisk').style.display = 'block';
+            document.getElementById('floodRiskForecast').style.display = 'block';
+            
+            // Display current risk level
+            const riskLevel = riskData.current_risk.level;
+            const riskScore = riskData.current_risk.score;
+            const riskDescription = riskData.current_risk.description;
+            const riskColor = riskData.current_risk.color;
+            
+            const riskCircle = document.getElementById('riskLevelCircle');
+            riskCircle.style.backgroundColor = riskColor;
+            riskCircle.textContent = riskLevel;
+            
+            document.getElementById('riskLevelText').textContent = `${riskLevel} Risk (${Math.round(riskScore)}/100)`;
+            document.getElementById('riskDescription').textContent = riskDescription;
+            
+            // Display contributing factors
+            const factorsList = document.getElementById('riskFactorsList');
+            factorsList.innerHTML = '';
+            
+            for (const [factor, value] of Object.entries(riskData.contributing_factors)) {
+                const formattedFactor = factor.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                const listItem = document.createElement('li');
+                listItem.className = 'list-group-item d-flex justify-content-between align-items-center';
+                listItem.innerHTML = `
+                    ${formattedFactor}
+                    <span class="badge bg-primary rounded-pill">${Math.round(value)}</span>
+                `;
+                factorsList.appendChild(listItem);
+            }
+            
+            // Display recommendations
+            const recommendationsList = document.getElementById('recommendationsList');
+            recommendationsList.innerHTML = '';
+            
+            riskData.recommendations.forEach(recommendation => {
+                const listItem = document.createElement('li');
+                listItem.className = 'list-group-item';
+                listItem.innerHTML = `<i class="bi bi-check-circle-fill me-2 text-success"></i> ${recommendation}`;
+                recommendationsList.appendChild(listItem);
+            });
+            
+            // Display forecast data
+            const forecastTableBody = document.getElementById('forecastTableBody');
+            forecastTableBody.innerHTML = '';
+            
+            if (riskData.forecast && riskData.forecast.length > 0) {
+                riskData.forecast.forEach(day => {
+                    const row = document.createElement('tr');
+                    
+                    // Apply color based on risk level
+                    let badgeClass;
+                    switch (day.risk_level) {
+                        case 'LOW':
+                            badgeClass = 'bg-success';
+                            break;
+                        case 'MODERATE':
+                            badgeClass = 'bg-warning text-dark';
+                            break;
+                        case 'HIGH':
+                            badgeClass = 'bg-orange';  // Custom class we added
+                            break;
+                        case 'SEVERE':
+                            badgeClass = 'bg-danger';
+                            break;
+                        default:
+                            badgeClass = 'bg-secondary';
+                    }
+                    
+                    row.innerHTML = `
+                        <td>${new Date(day.date).toLocaleDateString()}</td>
+                        <td>${day.precipitation.toFixed(1)} mm</td>
+                        <td><span class="badge ${badgeClass}">${day.risk_level}</span></td>
+                        <td>${day.description}</td>
+                    `;
+                    
+                    forecastTableBody.appendChild(row);
+                });
+            } else {
+                forecastTableBody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="text-center">No forecast data available</td>
+                    </tr>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
